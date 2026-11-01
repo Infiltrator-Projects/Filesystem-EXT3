@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Qualify imported EXT3 core (not complete EXT3.so)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/filesystems/ext3/core/**'
+      - 'tests/ext3_core_test.c'
+      - '.github/workflows/ext3-core.yml'
+  pull_request:
+    paths:
+      - 'native/filesystems/ext3/core/**'
+      - 'tests/ext3_core_test.c'
+      - '.github/workflows/ext3-core.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ext3-core:
+    name: EXT3 source core / ${{ matrix.compiler }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Compile independent EXT3 core and execute negative tests with sanitizers
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ matrix.compiler }}" -std=c11 -Wall -Wextra -Werror -pedantic -O1 -g \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            native/filesystems/ext3/core/ext3_core.c tests/ext3_core_test.c \
+            -o "$RUNNER_TEMP/ext3_core_test"
+          "$RUNNER_TEMP/ext3_core_test"
+      - name: Guard against false claims of full module qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'NOT a complete EXT3.so' MIGRATION_STATUS.md
+          test ! -e build/EXT3.so
