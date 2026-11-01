@@ -1,0 +1,58 @@
+name: Independently build and validate EXT3 source-owned module
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'compat/**'
+      - 'fixtures/**'
+      - 'include/**'
+      - 'migration/**'
+      - 'module/**'
+      - 'native/**'
+      - 'tests/**'
+      - 'docs/EXT3.pdf'
+      - '.github/workflows/independent-engine.yml'
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - 'compat/**'
+      - 'fixtures/**'
+      - 'include/**'
+      - 'migration/**'
+      - 'module/**'
+      - 'native/**'
+      - 'tests/**'
+      - 'docs/EXT3.pdf'
+      - '.github/workflows/independent-engine.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ext3-standalone-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install compilation prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libssl-dev libsqlite3-dev
+      - name: Build only this repository's module and run tests
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-independent -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build-independent --parallel 2
+          ctest --test-dir build-independent --output-on-failure
+          test -f build-independent/EXT3.so
+          test ! -e build-independent/EXT2.so
+          test ! -e build-independent/EXT4.so
+          nm -D build-independent/EXT3.so | grep -F 'infiltrator_filesystem_ext_v1'
+      - name: Verify exact two-file standalone CMake payload
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          trap 'rm -rf "$stage"' EXIT
+          DESTDIR="$stage" cmake --install build-independent
+          actual="$(cd "$stage" && find . -type f -printf '%P\n' | LC_ALL=C sort)"
+          expected="$(printf '%s\n' 'System/Filesystems/EXT3.so' 'System/Resources/Documentation/Filesystem-EXT3/EXT3.pdf' | LC_ALL=C sort)"
+          test "$actual" = "$expected"
+          test "$(head -c 5 "$stage/System/Resources/Documentation/Filesystem-EXT3/EXT3.pdf")" = '%PDF-'
