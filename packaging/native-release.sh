@@ -71,7 +71,7 @@ build_so() {
    make -C "$root" OUT="$dir" CFLAGS="-std=c11 -O3 -march=native -mtune=native -flto -fprofile-use=$dir/profile -fprofile-correction -Wno-missing-profile -Wall -Wextra -Werror" test
   fi
  elif [[ "$mode" == portable ]]; then
-  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release \
+  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DIFS_EXT_BUILD_LEGACY_MULTIFORMAT_TEST_MODULES=ON -DCMAKE_BUILD_TYPE=Release \
    -DCMAKE_C_FLAGS_RELEASE="-O2 -march=x86-64 -mtune=generic -DNDEBUG" \
    -DCMAKE_CXX_FLAGS_RELEASE="-O2 -march=x86-64 -mtune=generic -DNDEBUG"
   cmake --build "$dir" --parallel 2
@@ -79,14 +79,14 @@ build_so() {
  else
   flags="-O3 -march=native -mtune=native -flto -DNDEBUG"
   mkdir -p "$dir/profile"
-  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release \
+  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DIFS_EXT_BUILD_LEGACY_MULTIFORMAT_TEST_MODULES=ON -DCMAKE_BUILD_TYPE=Release \
    -DCMAKE_C_FLAGS_RELEASE="$flags -fprofile-generate=$dir/profile" \
    -DCMAKE_CXX_FLAGS_RELEASE="$flags -fprofile-generate=$dir/profile" \
    -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate=$dir/profile"
   cmake --build "$dir" --parallel 2
   ctest --test-dir "$dir" --output-on-failure
   find "$dir/profile" -name '*.gcda' -type f -size +0c | grep -q . || { echo 'No measured native PGO data' >&2; exit 1; }
-  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release \
+  cmake -S "$backend" -B "$dir" -DBUILD_TESTING=ON -DIFS_EXT_BUILD_LEGACY_MULTIFORMAT_TEST_MODULES=ON -DCMAKE_BUILD_TYPE=Release \
    -DCMAKE_C_FLAGS_RELEASE="$flags -fprofile-use=$dir/profile -fprofile-correction -Wno-missing-profile" \
    -DCMAKE_CXX_FLAGS_RELEASE="$flags -fprofile-use=$dir/profile -fprofile-correction -Wno-missing-profile" \
    -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-use=$dir/profile"
