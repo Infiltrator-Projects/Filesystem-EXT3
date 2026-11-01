@@ -1,0 +1,8 @@
+{
+  "repository": "Filesystem-EXT3",
+  "module": "EXT3.so",
+  "pdf": "docs/EXT3.pdf",
+  "abi": "infiltrator_filesystem_ext_v1",
+  "build_system": "cmake",
+  "backend_revision": "5c4e11f04a9b0f5c56aae96e622534614d3486b0"
+}
