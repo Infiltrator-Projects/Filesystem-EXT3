@@ -89,7 +89,9 @@ endif()
 if(BUILD_TESTING)
  add_executable(ext3-format-core-test
    native/filesystems/ext3/core/ext3_core.c tests/ext3_core_test.c)
- target_compile_options(ext3-format-core-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+ # The upstream format-core suite uses assert() as its test oracle.
+ # Release builds define NDEBUG, so explicitly keep assertions enabled here.
+ target_compile_options(ext3-format-core-test PRIVATE -UNDEBUG -Wall -Wextra -Wpedantic -Werror)
  add_test(NAME ext3-format-core COMMAND ext3-format-core-test)
  add_executable(ext3-cross-format-denial-test tests/test_cross_format.c)
  target_include_directories(ext3-cross-format-denial-test PRIVATE
