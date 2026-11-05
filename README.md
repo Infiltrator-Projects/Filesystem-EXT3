@@ -15,7 +15,7 @@ Passing these tests establishes **only host-neutral core-level validation**. It 
 ## Installer files
 
 - `/System/Filesystems/EXT3.so`
-- `/System/Resources/Documentation/Filesystem-EXT3/EXT3.pdf`
+- `/System/Resources/Documentation/Filesystem-EXT3.pdf`
 - `/System/Kernel/Filesystems/ext3.ko`
 
 The published Debian package installs these three regular files. A manual native RUN compiles the shared object and Linux adapter locally, generates the PDF, and replaces all three files. It uses the running kernel headers by default. Use `--kernel-build DIRECTORY` for a prepared kernel build with `Module.symvers`. The kernel module is stored for manual use.

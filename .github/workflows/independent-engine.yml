@@ -53,6 +53,6 @@ jobs:
           trap 'rm -rf "$stage"' EXIT
           DESTDIR="$stage" cmake --install build-independent
           actual="$(cd "$stage" && find . -type f -printf '%P\n' | LC_ALL=C sort)"
-          expected="$(printf '%s\n' 'System/Filesystems/EXT3.so' 'System/Resources/Documentation/Filesystem-EXT3/EXT3.pdf' | LC_ALL=C sort)"
+          expected="$(printf '%s\n' 'System/Filesystems/EXT3.so' 'System/Resources/Documentation/Filesystem-EXT3.pdf' | LC_ALL=C sort)"
           test "$actual" = "$expected"
-          test "$(head -c 5 "$stage/System/Resources/Documentation/Filesystem-EXT3/EXT3.pdf")" = '%PDF-'
+          test "$(head -c 5 "$stage/System/Resources/Documentation/Filesystem-EXT3.pdf")" = '%PDF-'
