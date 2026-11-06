@@ -1,8 +1,8 @@
 # Filesystem-EXT3
 
-**Source migration in progress — this is not a complete filesystem driver.**
+**Independent source builds are available; full filesystem qualification is still in progress.**
 
-This repository preserves the host-neutral EXT3/JBD format core imported from `Infiltrator-Projects/Filesystems`. It does **not** yet build a qualified standalone `EXT3.so`, Linux `.ko` or UEFI `.efi` driver; consuming applications have not been migrated to a self-contained EXT3 module.
+This repository preserves the host-neutral EXT3/JBD format core imported from `Infiltrator-Projects/Filesystems`. `EXT3.so` is now built from this repository's own CMake source, and `ext3.ko` is built from the locally owned Linux VFS source tree. A genuinely qualified UEFI `.efi` driver and full Linux-root/real-media recovery qualification remain separate unfinished work.
 
 The actual migration boundary and remaining work are recorded in [MIGRATION_STATUS.md](MIGRATION_STATUS.md). The filesystem format and journal invariants are described in [the original format design](native/filesystems/ext3/DESIGN.md).
 
