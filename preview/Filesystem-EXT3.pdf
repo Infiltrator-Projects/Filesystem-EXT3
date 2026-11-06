@@ -1,0 +1,336 @@
+%PDF-1.4
+%ASCII-ONLY-PDF
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R] /Count 10 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2752 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 01) Tj ET
+BT /F2 12 Tf 0.02 0.50 0.56 rg 1 0 0 1 50 690.0 Tm (HISTORY / ORIGINAL DESIGN / DISK FORMAT) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 655.0 Tm (The ext2-compatible journalling evolution, implemented in the Linux kernel to reduce) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 638.0 Tm (crash-recovery time and preserve metadata consistency.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 609.0 Tm (This is a technical reference to the upstream filesystem's historical design, not an) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 592.0 Tm (installer manual. The format's on-media semantics are distinct from the independent) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 575.0 Tm (InfiltratorOS module, its APIs and any Linux kernel adapter.) Tj ET
+BT /F2 12 Tf 0.02 0.50 0.56 rg 1 0 0 1 50 546.0 Tm (CONCEPTUAL MEDIA MAP) Tj ET
+0.040 0.360 0.470 rg 50 463 239 67 re f
+BT /F2 11 Tf 1 1 1 rg 1 0 0 1 61 495.0 Tm (EXT SUPERBLOCK) Tj ET
+BT /F1 8.5 Tf 0.86 0.96 0.97 rg 1 0 0 1 61 476.0 Tm (Compatible feature flags) Tj ET
+0.065 0.395 0.495 rg 301 463 239 67 re f
+BT /F2 11 Tf 1 1 1 rg 1 0 0 1 312 495.0 Tm (BLOCK GROUPS) Tj ET
+BT /F1 8.5 Tf 0.86 0.96 0.97 rg 1 0 0 1 312 476.0 Tm (Inodes, bitmaps, directories) Tj ET
+0.090 0.430 0.520 rg 50 381 239 67 re f
+BT /F2 11 Tf 1 1 1 rg 1 0 0 1 61 413.0 Tm (JOURNAL) Tj ET
+BT /F1 8.5 Tf 0.86 0.96 0.97 rg 1 0 0 1 61 394.0 Tm (JBD transactions and commits) Tj ET
+0.115 0.465 0.545 rg 301 381 239 67 re f
+BT /F2 11 Tf 1 1 1 rg 1 0 0 1 312 413.0 Tm (FILE DATA) Tj ET
+BT /F1 8.5 Tf 0.86 0.96 0.97 rg 1 0 0 1 312 394.0 Tm (Traditional indirect block mapping) Tj ET
+BT /F2 12 Tf 0.02 0.50 0.56 rg 1 0 0 1 50 340.0 Tm (CONTENTS) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 313.0 Tm (1. Historical chronology) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 290.0 Tm (2. Original on-disk architecture) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 267.0 Tm (3. Allocation and directories) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 244.0 Tm (4. Integrity and recovery) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 221.0 Tm (5. Design rationale and limitations) Tj ET
+BT /F1 10.6 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 198.0 Tm (6. InfiltratorOS integration boundary) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 1986 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 02) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (HISTORICAL CHRONOLOGY) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (Ext3 was developed by Stephen Tweedie in the late 1990s, with kernel documentation) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (identifying a September 1999 release. The project built on ext2 instead of introducing an) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (incompatible new layout. Its journalling changes entered mainline Linux in the 2.4-era,) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (helping Linux systems avoid the expensive whole-volume consistency scans that could follow) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 611.0 Tm (a crash on an ext2 installation.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 582.0 Tm (The conversion story was central to adoption: ext3 can add a journal to an ext2-formatted) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (volume without wholesale copying every file. The resulting shared heritage made it) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 548.0 Tm (practical for distributions to move to journalling while retaining recovery tools and) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 531.0 Tm (established ext2 metadata structures. Ext4 later superseded ext3 for many modern workloads) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 514.0 Tm (while retaining support for a compatible subset.) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 2010 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 03) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (ORIGINAL ON-DISK ARCHITECTURE) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (An ext3 filesystem retains ext2's primary superblock, block groups, descriptors, allocation) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (bitmaps, inode tables and file-block mapping. The HAS_JOURNAL compatible feature flag) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (indicates a journal. The journal commonly resides in a specially designated inode within) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (the filesystem, although external journals are possible. Its block format, headers,) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 611.0 Tm (descriptors and commit records are part of the JBD journalling subsystem.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 582.0 Tm (Ext3 directory entries still refer to inodes; inodes use familiar direct and indirect) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (pointers rather than ext4's standard extent-tree layout. Revision and extension bits) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 548.0 Tm (matter: a driver should inspect explicit feature flags, not rely on a name string or assume) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 531.0 Tm (all ext-family layouts are interchangeable. JBD journal blocks have their own endianness) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 514.0 Tm (and transaction rules.) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 2033 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 04) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (ALLOCATION AND DIRECTORIES) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (Ext3 uses block and inode bitmaps for each group, with locality-aware allocation policy) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (inherited from ext2. Regular file data is mapped through inode pointers and indirect) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (blocks. Directory entries contain inode numbers, record lengths, name lengths and bytes of) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (the name. Larger directory optimisations, including HTree indexing where supported, change) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 611.0 Tm (lookup behaviour without abandoning the fundamental inode namespace.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 582.0 Tm (Hard-link counts, metadata ordering and atomic rename semantics must be read together with) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (journal operation. A directory tree is not recovered merely by seeing a committed journal) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 548.0 Tm (record; all referenced blocks and feature-specific metadata must be interpretable and) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 531.0 Tm (within bounds. The journalling layer protects an ordered set of modifications rather than) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 514.0 Tm (replacing all underlying format constraints.) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2128 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 05) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (INTEGRITY AND RECOVERY) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (JBD logs transactions that can be replayed after a crash. The familiar write modes differ:) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (journal mode can journal file data as well as metadata, ordered mode orders data relative) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (to associated metadata commits, and writeback provides weaker data ordering. It is) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (incorrect to say ext3 always journals every file byte. A successful journal replay repairs) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 611.0 Tm (many incomplete metadata transactions, but cannot replace checks of damaged sectors or) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 594.0 Tm (corrupted inode maps.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (The recovery process identifies committed transactions and replays appropriate metadata) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 548.0 Tm (updates before presenting the filesystem as consistent. If journal structures are torn or) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 531.0 Tm (corrupt, e2fsck remains necessary. Write barriers and stable-storage assumptions are) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 514.0 Tm (essential to interpreting a commit as durable. Journal existence does not protect against) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 497.0 Tm (malicious or concurrent offline modification.) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 1757 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 06) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (DESIGN RATIONALE AND LIMITATIONS) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (The ext3 approach prioritised backward compatibility, conservative semantics and shorter) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (restart time after power loss. This came at the cost of extra journal I/O and continued) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (dependence on older block-pointer mapping. Ext4's extent mapping, larger-volume support and) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (delayed allocation were designed to address workloads ext3 could not serve efficiently.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 599.0 Tm (A journal is not a backup, immutable snapshot or comprehensive protection of user data.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 582.0 Tm (Filesystem capacity and directory limits depend on selected geometry and revision; a modern) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (driver that mounts ext3 must honour the supported feature masks and carefully distinguish) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 548.0 Tm (ext3 metadata from ext4-only extensions.) Tj ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 1553 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 07) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (INFILTRATOROS INTEGRATION BOUNDARY) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (EXT3.so may share source architecture with the InfiltratorOS EXT4 project, but an ext3) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (volume remains its own on-media identity. Build-system reuse does not justify enabling) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (unsupported ext4 features or assuming ext4's full API and recovery path exist in the ext3) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (module.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 599.0 Tm (The filesystem's original journal and Linux recovery model are separate from any) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 582.0 Tm (InfiltratorOS application-level defragmentation journal. Linux `.ko` interoperability,) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 565.0 Tm (source-first builds and Boot usage require explicit evidence beyond a compiled PDF.) Tj ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 2227 >>
+stream
+0.06 0.13 0.22 rg 0 750 595 92 re f
+0.03 0.53 0.58 rg 50 747 120 4 re f
+0.7 0.8 0.85 RG 0.7 w 50 50 m 545 50 l S
+BT /F2 9 Tf 0.60 0.85 0.90 rg 1 0 0 1 50 803.0 Tm (INFILTRATOR / ORIGINAL FILESYSTEM TECHNICAL REFERENCE) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 774.0 Tm (EXT3 - journalled extended filesystem) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 50 34.0 Tm (Filesystem-EXT3 | Format history, physical design and references) Tj ET
+BT /F1 8 Tf 0.33 0.40 0.44 rg 1 0 0 1 509 34.0 Tm (PAGE 08) Tj ET
+BT /F2 14 Tf 0.01 0.43 0.49 rg 1 0 0 1 50 713.0 Tm (SOURCES AND PRIMARY REFERENCES) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 679.0 Tm (The documents below are the historical and engineering reference points used for this) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 662.0 Tm (guide. Where an on-media field or feature flag is ambiguous, consult the original format) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 645.0 Tm (documentation and its version-specific implementation notes before interpreting or changing) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 628.0 Tm (media.) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 599.0 Tm (1. Linux kernel: Ext3 Filesystem history and design) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 570.0 Tm (https://www.kernel.org/doc/html/v6.8/filesystems/ext3.html) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 541.0 Tm (2. Stephen C. Tweedie, ext3 development announcement, 2001) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 512.0 Tm (https://lwn.net/2001/0111/a/ext3.php3) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 483.0 Tm (3. Linux ext4 journal format notes) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 454.0 Tm (https://docs.kernel.org/filesystems/ext4/journal.html) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 425.0 Tm (The InfiltratorOS shared-object module, optional kernel adapter, native builder and) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 408.0 Tm (release-specific tests are a separate implementation. A successful document build or) Tj ET
+BT /F1 10.15 Tf 0.08 0.15 0.24 rg 1 0 0 1 50 391.0 Tm (package installation does not qualify physical writes, recovery, kernel mounting or boot.) Tj ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 2664 >>
+stream
+0.05 0.13 0.22 rg 0 749 595 93 re f
+0.01 0.52 0.56 rg 50 747 116 5 re f
+0.75 0.82 0.85 RG .7 w 50 49 m 545 49 l S
+BT /F2 9 Tf 0.62 0.88 0.91 rg 1 0 0 1 50 800 Tm (INFILTRATOR / ORIGINAL FILESYSTEM ENGINEERING APPENDIX) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 770 Tm (EXT3 / engineering detail) Tj ET
+BT /F1 8 Tf 0.3 0.39 0.42 rg 1 0 0 1 50 34 Tm (Original format research; consult primary references for normative fields) Tj ET
+BT /F1 8 Tf 0.3 0.39 0.42 rg 1 0 0 1 509 34 Tm (PAGE 09) Tj ET
+BT /F2 13.5 Tf 0.02 0.44 0.50 rg 1 0 0 1 50 710 Tm (DISK READ PATH / ENGINEERING NOTES) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 678 Tm (1. Begin with the ext-family superblock and feature flags. Ext3 retains the familiar) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 661.5 Tm (block groups, inode tables and directory structures of ext2.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 635 Tm (2. Locate the journal, normally associated with a reserved inode or an external journal) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 618.5 Tm (device, and confirm its metadata before replay.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 592 Tm (3. Interpret journal descriptor, commit and revoke records using JBD's record format. An) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 575.5 Tm (incomplete or uncommitted transaction must not become live metadata.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 549 Tm (4. Distinguish ordered, writeback and journalled data modes; they express different) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 532.5 Tm (guarantees about user data versus metadata updates.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 506 Tm (5. Apply metadata replay to a consistent ext filesystem image before relying on bitmaps) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 489.5 Tm (or directories. A clean-looking inode table alone is not enough.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 463 Tm (6. Resolve inode data through the block pointer mapping appropriate to its feature set;) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 446.5 Tm (ext3 does not automatically imply ext4 extent trees.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 420 Tm (7. Read file and directory records using the versioned ext format, including directory) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 403.5 Tm (index features when enabled.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 377 Tm (8. Keep external journal identity and feature compatibility separate from ordinary) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 360.5 Tm (block-device addresses; a missing external journal changes recovery possibilities.) Tj ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 2629 >>
+stream
+0.05 0.13 0.22 rg 0 749 595 93 re f
+0.01 0.52 0.56 rg 50 747 116 5 re f
+0.75 0.82 0.85 RG .7 w 50 49 m 545 49 l S
+BT /F2 9 Tf 0.62 0.88 0.91 rg 1 0 0 1 50 800 Tm (INFILTRATOR / ORIGINAL FILESYSTEM ENGINEERING APPENDIX) Tj ET
+BT /F2 19 Tf 1 1 1 rg 1 0 0 1 50 770 Tm (EXT3 / engineering detail) Tj ET
+BT /F1 8 Tf 0.3 0.39 0.42 rg 1 0 0 1 50 34 Tm (Original format research; consult primary references for normative fields) Tj ET
+BT /F1 8 Tf 0.3 0.39 0.42 rg 1 0 0 1 509 34 Tm (PAGE 10) Tj ET
+BT /F2 13.5 Tf 0.02 0.44 0.50 rg 1 0 0 1 50 710 Tm (VALIDATION, RECOVERY AND COMPATIBILITY) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 678 Tm (1. Confirm journal UUID, sequence ordering and transaction boundaries before recovery.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 661.5 Tm (Journal records from a different volume must never be replayed.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 635 Tm (2. Account for revoke records so stale logged blocks are not restored over newer) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 618.5 Tm (transactions.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 592 Tm (3. Respect the distinct guarantees of journalling modes: metadata consistency is not) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 575.5 Tm (equivalent to durable contents for every recently written file.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 549 Tm (4. Verify that replayed metadata remains within filesystem and block-group bounds and) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 532.5 Tm (that the resulting inode, bitmap and directory state is coherent.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 506 Tm (5. Do not interpret every ext3 volume as ext2 simply because the basic inode layout looks) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 489.5 Tm (familiar; an outstanding recovery flag matters.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 463 Tm (6. After replay, check incompatible and read-only feature masks before writable access,) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 446.5 Tm (particularly when using a driver from a different era.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 420 Tm (7. Preserve the journal and the original image when an unclean shutdown is suspected;) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 403.5 Tm (uncontrolled fsck can destroy useful recovery evidence.) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 377 Tm (8. Distinguish historical ext3/JBD structures from ext4/JBD2 additions rather than) Tj ET
+BT /F1 10 Tf 0.09 0.16 0.24 rg 1 0 0 1 55 360.5 Tm (borrowing more recent feature definitions indiscriminately.) Tj ET
+endstream
+endobj
+xref
+0 26
+0000000000 65535 f 
+0000000025 00000 n 
+0000000074 00000 n 
+0000000194 00000 n 
+0000000264 00000 n 
+0000000339 00000 n 
+0000000407 00000 n 
+0000000553 00000 n 
+0000003356 00000 n 
+0000003502 00000 n 
+0000005539 00000 n 
+0000005687 00000 n 
+0000007749 00000 n 
+0000007897 00000 n 
+0000009982 00000 n 
+0000010130 00000 n 
+0000012310 00000 n 
+0000012458 00000 n 
+0000014267 00000 n 
+0000014415 00000 n 
+0000016020 00000 n 
+0000016168 00000 n 
+0000018447 00000 n 
+0000018595 00000 n 
+0000021311 00000 n 
+0000021459 00000 n 
+trailer
+<< /Size 26 /Root 1 0 R >>
+startxref
+24140
+%%EOF
