@@ -225,7 +225,17 @@ IfsExt3DirectoryRecordStatus ifs_ext3_validate_directory_record(
     const ifs_ext3_u32 block_size,
     const ifs_ext3_u32 maximum_inode)
 {
-    const ifs_ext3_u32 minimum_length = (name_length + 11U) & ~3U;
+    /*
+     * EXT3's on-disk dirent name_len occupies one byte.  Reject values that
+     * cannot be represented before forming the rounded record length;
+     * otherwise a large untrusted name_length can wrap the u32 addition.
+     */
+    ifs_ext3_u32 minimum_length;
+
+    if (name_length > 255U)
+        return IFS_EXT3_DIRECTORY_RECORD_NAME_TOO_LONG;
+
+    minimum_length = (name_length + 11U) & ~3U;
 
     if (record_length < 12U)
         return IFS_EXT3_DIRECTORY_RECORD_TOO_SHORT;
