@@ -38,5 +38,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'NOT a complete EXT3.so' MIGRATION_STATUS.md
+          grep -Fq 'journal safety, independent real-media read/write/recovery' MIGRATION_STATUS.md
           test ! -e build/EXT3.so
