@@ -30,6 +30,7 @@ add_library(ext-core OBJECT
  "${EXT_SRC}/ext_workspace.c"
  "${EXT_SRC}/ext_worker.c"
  "${EXT_SRC}/ext_metadata_worker.c"
+ "${CMAKE_CURRENT_SOURCE_DIR}/native/filesystems/ext3/core/ext3_core.c"
  fixtures/ext_codec.c module/ext_fixture_bridge.c)
 target_include_directories(ext-core PRIVATE "${EXT_SRC}" "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/include" "${CMAKE_CURRENT_SOURCE_DIR}/compat"
  "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -93,6 +94,14 @@ if(BUILD_TESTING)
  # Release builds define NDEBUG, so explicitly keep assertions enabled here.
  target_compile_options(ext3-format-core-test PRIVATE -UNDEBUG -Wall -Wextra -Wpedantic -Werror)
  add_test(NAME ext3-format-core COMMAND ext3-format-core-test)
+ # Ensure the portable format validation implementation is present in
+ # EXT3.so itself; the kernel adapter uses this exact source tree too.
+ add_executable(ext3-shared-core-link-test tests/test_canonical_so_link.c)
+ target_include_directories(ext3-shared-core-link-test PRIVATE
+   "${CMAKE_CURRENT_SOURCE_DIR}/native/filesystems/ext3/core")
+ target_compile_options(ext3-shared-core-link-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+ target_link_libraries(ext3-shared-core-link-test PRIVATE ext-ext3-driver)
+ add_test(NAME ext3-shared-core-link COMMAND ext3-shared-core-link-test)
  add_executable(ext3-cross-format-denial-test tests/test_cross_format.c)
  target_include_directories(ext3-cross-format-denial-test PRIVATE
    "${CMAKE_CURRENT_SOURCE_DIR}/include"
