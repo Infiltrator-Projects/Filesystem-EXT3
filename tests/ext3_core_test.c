@@ -55,6 +55,12 @@ static void directories_and_mapping(void)
            == IFS_EXT3_DIRECTORY_RECORD_CROSSES_BLOCK);
     assert(ifs_ext3_validate_directory_record(0, 12, 1, 101, 4096, 100)
            == IFS_EXT3_DIRECTORY_RECORD_INODE_RANGE);
+    /* name_len is an on-disk byte: never allow an overflowed larger value
+     * to pass validation when u32 record-length addition would wrap. */
+    assert(ifs_ext3_validate_directory_record(0, 12, UINT32_MAX, 2, 4096, 100)
+           == IFS_EXT3_DIRECTORY_RECORD_NAME_TOO_LONG);
+    assert(ifs_ext3_validate_directory_record(0, 12, 256, 2, 4096, 100)
+           == IFS_EXT3_DIRECTORY_RECORD_NAME_TOO_LONG);
     assert(ifs_ext3_directory_record_length_to_disk(65536U, 65536U, &encoded) == 0);
     assert(encoded == 0xffffU);
     assert(ifs_ext3_directory_record_length_from_disk(encoded, 65536U) == 65536U);
