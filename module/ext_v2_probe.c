@@ -5,6 +5,10 @@
  */
 #include <infiltratr/filesystem_module_v2.h>
 #include <infiltratr/filesystem_ro_sessions_v2.h>
+/* Strict Common V2 module identity survives native LTO and section GC. */
+__attribute__((used, retain, section(".ifsmeta")))
+static const char ifs_ext3_v2_identity[] = "IFS-MODULE:ext3:common2";
+
 #include "../native/filesystems/ext3/core/ext3_core.h"
 #include <stddef.h>
 #include <stdint.h>
