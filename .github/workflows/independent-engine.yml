@@ -45,7 +45,7 @@ jobs:
           test -f build-independent/EXT3.so
           test ! -e build-independent/EXT2.so
           test ! -e build-independent/EXT4.so
-          nm -D build-independent/EXT3.so | grep -F 'infiltrator_filesystem_ext_v1'
+          sh tests/check_v2_exports.sh build-independent/EXT3.so
       - name: Verify exact two-file standalone CMake payload
         run: |
           set -euo pipefail
