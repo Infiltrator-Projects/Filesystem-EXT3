@@ -16,3 +16,18 @@ mounts, foreign EXT4, unsafe features and write-capable-only hosts fail
 closed. The existing independent EXT3 journalled filesystem worker,
 transaction writer and recovery remain unchanged. No Common V2 DEFRAG
 MAP/PLAN/EXECUTE/VERIFY/RECOVER are advertised or qualified here.
+
+## Production Common V2-only library boundary (1.0.12)
+
+`EXT3.so` now links only this independent repository's canonical EXT3
+format core and the strict Common V2 provider. The retired Defragmenter
+CLI, legacy V1 host services, fixture adapters and path-oriented worker are
+retained only as non-installed test targets, preserving historical bitmap
+and descriptor-cache regression coverage without shipping the old ABI.
+
+The production provider remains a **read-only metadata-session provider**:
+`CORE.PROBE / MOUNT / UNMOUNT` and `VOLUME.QUERY`. It does not yet expose
+file namespace `STAT / LIST / READ`, journal replay, writable mounts,
+filesystem formatting or native Common V2 defragmentation. Neither the
+standalone Linux module nor Linux's native EXT3 implementation is an allowed
+substitute for the generic Common V2 Kernel VFS/ELF loader.

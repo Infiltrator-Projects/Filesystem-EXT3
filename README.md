@@ -21,3 +21,12 @@ Passing these tests establishes **only host-neutral core-level validation**. It 
 The published Debian package installs these three regular files. A manual native RUN compiles the shared object and Linux adapter locally, generates the PDF, and replaces all three files. It uses the running kernel headers by default. Use `--kernel-build DIRECTORY` for a prepared kernel build with `Module.symvers`. The kernel module is stored for manual use.
 
 InfiltratorOS calls `--system-package-mode` and decides which outputs need updating. Its worker builds a missing or older SO, repairs the PDF independently, and stores the matching released kernel module when available. Use `--build-only --output DIRECTORY` to build a Debian package.
+
+## Strict Common V2 production boundary (1.0.12)
+
+The installed EXT3.so no longer contains the legacy Defragmenter worker and
+V1 host services; these are retained only in test binaries. Its current
+Common V2 operations are read-only volume probe, mount/session lifecycle
+and volume query, not file namespace traversal or an operating-system VFS
+mount. Journal-aware Common V2 namespace and Kernel integration remain to
+be implemented and qualified without native driver fallbacks.
