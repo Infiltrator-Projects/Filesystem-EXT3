@@ -44,10 +44,10 @@ mkfs.ext3 -q -F -b 1024 -O none,has_journal,filetype,sparse_super,large_file -L 
 if [[ $mode == needs-recovery ]]; then
     # Require journal replay: incompat FILETYPE (2) + RECOVER (4).
     # Editing a disposable copy is the entire point of this negative test.
-    printf '\\006\\000\\000\\000' | dd of="$media" bs=1 seek=1120 conv=notrunc status=none
+    printf '\006\000\000\000' | dd of="$media" bs=1 seek=1120 conv=notrunc status=none
 elif [[ $mode == no-journal ]]; then
     # Replace compat flags at superblock + 0x5c, removing HAS_JOURNAL.
-    printf '\\000\\000\\000\\000' | dd of="$media" bs=1 seek=1116 conv=notrunc status=none
+    printf '\000\000\000\000' | dd of="$media" bs=1 seek=1116 conv=notrunc status=none
 fi
 if [[ $mode == bad-superblock ]]; then
     # EXT3 superblock starts at byte 1024; magic is at +56.
