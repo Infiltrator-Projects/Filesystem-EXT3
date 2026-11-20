@@ -3,6 +3,9 @@
  * No legacy provider descriptor, alternate parser or POSIX device handles.
  */
 #include <infiltratr/filesystem_module_v2.h>
+/* Genuine signed-position independent Common V2 source identity. */
+__attribute__((used, retain, section(".ifsmeta")))
+static const char ifs_ext3_v2_identity[] = "IFS-MODULE:ext3:common2";
 #include "../native/filesystems/ext3/reader/module/ext2_module.h"
 #include <stdint.h>
 #include <string.h>
