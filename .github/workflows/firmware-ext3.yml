@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Qualify packaged EXT3 Common V2 BOOT reads
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ext3-boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Install independent filesystem and virtual UEFI tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake libssl-dev libsqlite3-dev cpio busybox-static \
+            e2fsprogs dosfstools gdisk mtools qemu-system-x86 ovmf
+      - name: Fetch SHA-256 verified production BOOT executable and validator
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ext3-firmware"
+          mkdir -p "$work"
+          boot=infiltrator-boot_0.1.69_amd64.deb
+          curl -fsSL --retry 3 \
+            "https://github.com/Infiltrator-Projects/Boot/releases/download/v0.1.69/$boot" \
+            -o "$work/$boot"
+          printf '%s  %s\n' \
+            73429727974a902372f7d2644d00bb1f527e42b4454f9f3cafbf8ef1ad6c9a8e \
+            "$work/$boot" | sha256sum -c -
+          dpkg-deb -x "$work/$boot" "$work/package"
+      - name: Build one hosted EXT3.so containing the same freestanding V2 engine
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ext3-firmware"
+          cmake -S . -B "$work/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$work/build" --parallel 2
+          ctest --test-dir "$work/build" --output-on-failure
+          test -s "$work/build/EXT3.so"
+          test -s "$work/build/firmware/EXT3.so"
+          readelf -SW "$work/build/EXT3.so" | grep -F '.infiltrator_boot'
+          validator="$work/package/usr/lib/infiltrator-boot/validate-module"
+          if ! "$validator" "$work/build/firmware/EXT3.so"; then
+            echo 'Unmodified BOOT validator rejected the freestanding ELF' >&2
+            readelf -hW "$work/build/firmware/EXT3.so"
+            readelf -lW "$work/build/firmware/EXT3.so"
+            readelf -dW "$work/build/firmware/EXT3.so"
+            readelf -rW "$work/build/firmware/EXT3.so"
+            readelf --dyn-syms -W "$work/build/firmware/EXT3.so"
+            exit 1
+          fi
+          if ! "$validator" "$work/build/EXT3.so"; then
+            echo 'Unmodified BOOT validator rejected the hosted ELF carrier' >&2
+            readelf -hW "$work/build/EXT3.so"
+            readelf -SW "$work/build/EXT3.so"
+            readelf --dyn-syms -W "$work/build/EXT3.so"
+            readelf -dW "$work/build/EXT3.so"
+            exit 1
+          fi
+          stage="$work/stage"
+          DESTDIR="$stage" cmake --install "$work/build"
+          cmp "$stage/System/Filesystems/EXT3.so" "$work/build/EXT3.so"
+          "$validator" "$stage/System/Filesystems/EXT3.so"
+      - name: Load a genuine EFI-stub kernel and initramfs using the packaged module
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ext3-firmware"
+          image=$(apt-cache depends linux-image-generic | awk '/Depends: linux-image-[0-9]/ { image=$2 } END { print image }')
+          test -n "$image"
+          (cd "$work" && apt-get download "linux-image-unsigned-${image#linux-image-}")
+          dpkg-deb -x "$work"/linux-image-unsigned-*.deb "$work/kernel"
+          kernel="$work/kernel/boot/vmlinuz-${image#linux-image-}"
+          test -s "$kernel"
+          boot="$work/package/usr/lib/infiltrator-boot/EFI/BOOT/BOOTX64.EFI"
+          module="$work/stage/System/Filesystems/EXT3.so"
+          bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/vm"
+          bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/bad-vm" bad-superblock
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ext3-boot-ovmf-serial
+          path: |
+            ${{ runner.temp }}/ext3-firmware/vm/serial.log
+            ${{ runner.temp }}/ext3-firmware/bad-vm/serial.log
+          if-no-files-found: warn

@@ -16,6 +16,30 @@ FetchContent_Declare(infiltratr_common
 FetchContent_MakeAvailable(infiltratr_common)
 # The embedded Common SDK is linked, not installed with filesystem runtime modules.
 set_property(DIRECTORY "${infiltratr_common_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL TRUE)
+# Source-owned journal-checked EXT3 namespace engine with an embedded
+# freestanding, no-libc Common V2 firmware profile.
+if(NOT CMAKE_OBJCOPY)
+ find_program(CMAKE_OBJCOPY NAMES objcopy llvm-objcopy REQUIRED)
+endif()
+set(EXT3_FIRMWARE_DIR "${CMAKE_CURRENT_BINARY_DIR}/firmware")
+set(EXT3_FIRMWARE_ELF "${EXT3_FIRMWARE_DIR}/EXT3.so")
+add_custom_command(OUTPUT "${EXT3_FIRMWARE_ELF}"
+ COMMAND "${CMAKE_COMMAND}" -S "${CMAKE_CURRENT_SOURCE_DIR}/module/firmware"
+   -B "${EXT3_FIRMWARE_DIR}" -DCMAKE_BUILD_TYPE=Release
+   "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+   "-DCOMMON_INCLUDE_DIR=${infiltratr_common_SOURCE_DIR}/include"
+ COMMAND "${CMAKE_COMMAND}" --build "${EXT3_FIRMWARE_DIR}" --parallel 2
+ DEPENDS module/firmware/CMakeLists.txt module/firmware/runtime.c
+   module/ext3_common.c
+   native/filesystems/ext3/reader/core/ext2_core.c
+   native/filesystems/ext3/reader/core/ext2_engine.c
+   native/filesystems/ext3/reader/core/ext2_core.h
+   native/filesystems/ext3/reader/core/ext2_engine.h
+   native/filesystems/ext3/reader/module/ext2_module.c
+   native/filesystems/ext3/reader/module/ext2_module.h
+   "${infiltratr_common_SOURCE_DIR}/include/infiltratr/filesystem_module_v2.h"
+ VERBATIM)
+add_custom_target(ext3-firmware-elf DEPENDS "${EXT3_FIRMWARE_ELF}")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/version.h" "#define LD_VERSION \"1.0.0\"\n")
 set(EXT_SRC "${CMAKE_CURRENT_SOURCE_DIR}/migration/defragmenter/native")
 set_source_files_properties("${EXT_SRC}/ext_worker.c" PROPERTIES
@@ -45,10 +69,21 @@ foreach(kind IN ITEMS ext3)
  # the Common V2 provider; old Defragmenter workers are test-only.
  add_library(ext-${kind}-driver SHARED
   native/filesystems/ext3/core/ext3_core.c
-  module/ext_v2_probe.c)
+  module/ext3_common.c
+  native/filesystems/ext3/reader/core/ext2_core.c
+  native/filesystems/ext3/reader/core/ext2_engine.c
+  native/filesystems/ext3/reader/module/ext2_module.c)
  set_target_properties(ext-${kind}-driver PROPERTIES PREFIX "" OUTPUT_NAME "${module_name}" SUFFIX ".so")
+ add_dependencies(ext-${kind}-driver ext3-firmware-elf)
+ set_property(TARGET ext-${kind}-driver APPEND PROPERTY LINK_DEPENDS "${EXT3_FIRMWARE_ELF}")
+ add_custom_command(TARGET ext-${kind}-driver POST_BUILD
+   COMMAND "${CMAKE_OBJCOPY}" --add-section ".infiltrator_boot=${EXT3_FIRMWARE_ELF}"
+     --set-section-flags .infiltrator_boot=readonly
+     "$<TARGET_FILE:ext-${kind}-driver>" VERBATIM)
+
  target_compile_definitions(ext-${kind}-driver PRIVATE
-  _GNU_SOURCE _FILE_OFFSET_BITS=64 IFS_EXT_FORMAT_ID="${kind}")
+  _GNU_SOURCE _FILE_OFFSET_BITS=64 IFS_EXT_FORMAT_ID="${kind}"
+ IFS_EXT3_READ_ONLY_BUILD=1 IFS_EXT3_FAMILY_BUILD=1)
  target_compile_options(ext-${kind}-driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
  target_link_options(ext-${kind}-driver PRIVATE -Wl,-z,defs)
  target_include_directories(ext-${kind}-driver PRIVATE
@@ -64,7 +99,15 @@ foreach(kind IN ITEMS ext3)
   add_test(NAME ext-${kind}-module-contract COMMAND ext-${kind}-module-test)
   add_executable(ext3-v2-probe-test tests/test_ext_v2_probe.c)
   target_include_directories(ext3-v2-probe-test PRIVATE "${infiltratr_common_SOURCE_DIR}/include")
-  target_link_libraries(ext3-v2-probe-test PRIVATE ext-${kind}-driver InfiltratrCommon::Common)
+  # Synthetic metadata-only regression remains a test-only policy provider.
+  # Production V2 file namespace and firmware are qualified separately.
+  add_library(ext3-metadata-policy-test-only STATIC
+    module/ext_v2_probe.c native/filesystems/ext3/core/ext3_core.c)
+  target_include_directories(ext3-metadata-policy-test-only PRIVATE
+    "${infiltratr_common_SOURCE_DIR}/include")
+  target_link_libraries(ext3-metadata-policy-test-only PRIVATE InfiltratrCommon::Common)
+  target_link_libraries(ext3-v2-probe-test PRIVATE
+    ext3-metadata-policy-test-only InfiltratrCommon::Common)
   target_compile_options(ext3-v2-probe-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME ext3-common-v2-probe COMMAND ext3-v2-probe-test)
   add_test(NAME ext3-v2-only-dynamic-export

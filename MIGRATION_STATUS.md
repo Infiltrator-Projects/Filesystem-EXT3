@@ -31,3 +31,19 @@ file namespace `STAT / LIST / READ`, journal replay, writable mounts,
 filesystem formatting or native Common V2 defragmentation. Neither the
 standalone Linux module nor Linux's native EXT3 implementation is an allowed
 substitute for the generic Common V2 Kernel VFS/ELF loader.
+
+
+## Unreleased EXT3 Common V2 namespace and UEFI reader
+
+Production now compiles an independently owned EXT3 reader using the same native
+ext-family inode and block engine for hosted .so and freestanding EFI ELF.
+The EXT3 journal flag is mandatory. Pending journal replay, unclean volumes,
+external journals, and incompatible features are refused; no journal replay
+or writable operation is faked. The canonical EXT3 native format core is
+preserved and linked into hosted EXT3.so. The older metadata-only synthetic
+provider remains only in a test target, never the production .so.
+
+The copied ext-family reader retains source copyright and licence notices.
+Qualification must pass the real production BOOT static validator, actual
+Common V2 namespace tests and OVMF EFI-stub kernel/initrd reads before a
+new EXT3 version or DEB/RUN release. This section is not a release claim.
