@@ -105,6 +105,26 @@ jobs:
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/bad-vm" bad-superblock
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/recovery-vm" needs-recovery
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/no-journal-vm" no-journal
+      - name: Audit exactly the qualified V2 release module and native RUN
+        run: |
+          set -euo pipefail
+          ver=$(tr -d '\r\n' < VERSION)
+          deb="dist/infiltrator-filesystem-ext3_${ver}_amd64.deb"
+          run="dist/filesystem-ext3-${ver}-native-installer.run"
+          test -s "$deb" && test -s "$run"
+          stage="$RUNNER_TEMP/ext3-release-audit"
+          mkdir -p "$stage"
+          dpkg-deb -x "$deb" "$stage"
+          test "$(find "$stage" -type f | wc -l)" -eq 2
+          ! find "$stage" -name '*.ko' | grep .
+          cmp "$stage/System/Filesystems/EXT3.so" \
+            "$RUNNER_TEMP/ext3-firmware/deb-root/System/Filesystems/EXT3.so"
+          (cd dist && sha256sum ./*.deb ./*.run > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qualified-ext3-v2-release
+          path: dist/*
+          if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -116,3 +136,40 @@ jobs:
             ${{ runner.temp }}/ext3-firmware/recovery-vm/serial.log
             ${{ runner.temp }}/ext3-firmware/no-journal-vm/serial.log
           if-no-files-found: warn
+
+  publish-v2:
+    needs: ext3-boot
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/download-artifact@v4
+        with:
+          name: qualified-ext3-v2-release
+          path: dist
+      - name: Release only qualified immutable V2 filesystem artifacts
+        env:
+          GH_TOKEN: ${ github.token }
+        run: |
+          set -euo pipefail
+          version=$(tr -d '\r\n' < VERSION)
+          tag="v$version"
+          test "$(find dist -maxdepth 1 -name '*.deb' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name '*.run' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name 'SHA256SUMS.txt' | wc -l)" -eq 1
+          ! find dist -name '*.ko' | grep .
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+          if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA" || {
+              echo "Refusing to overwrite an existing release from another revision" >&2
+              exit 1
+            }
+            echo "Immutable V2 release already published from this revision"
+            exit 0
+          fi
+          gh release create "$tag" dist/*.deb dist/*.run dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "EXT3 source-owned Common V2 firmware reader $version" \
+            --notes "Only Common V2 EXT3.so and source-embedded native RUN. Production BOOT validator and packaged UEFI EFI-stub kernel/initramfs reads, clean and corrupt EXT3 journal cases, and unchanged-media checks passed. No filesystem-specific kernel module or V1 fallback is shipped."
