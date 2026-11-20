@@ -78,6 +78,8 @@ jobs:
           module="$work/stage/System/Filesystems/EXT3.so"
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/vm"
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/bad-vm" bad-superblock
+          bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/recovery-vm" needs-recovery
+          bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/no-journal-vm" no-journal
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -85,4 +87,6 @@ jobs:
           path: |
             ${{ runner.temp }}/ext3-firmware/vm/serial.log
             ${{ runner.temp }}/ext3-firmware/bad-vm/serial.log
+            ${{ runner.temp }}/ext3-firmware/recovery-vm/serial.log
+            ${{ runner.temp }}/ext3-firmware/no-journal-vm/serial.log
           if-no-files-found: warn

@@ -8,7 +8,7 @@ module=$(realpath "${2:?firmware EXT3.so required}")
 kernel=$(realpath "${3:?Linux EFI stub image required}")
 work=$(realpath -m "${4:?output directory required}")
 mode=${5:-clean}
-case "$mode" in clean|bad-superblock) ;; *) exit 2 ;; esac
+case "$mode" in clean|bad-superblock|needs-recovery|no-journal) ;; *) exit 2 ;; esac
 ovmf=${OVMF_DIR:-/usr/share/OVMF}
 mkdir -p "$work"
 esp="$work/esp.img"
@@ -41,6 +41,14 @@ truncate -s 128M "$media"
 # Independently create a real ext3 namespace. Use 1024-byte allocation
 # blocks to exercise indirect mappings and sector-aligned V2 BlockIo.
 mkfs.ext3 -q -F -b 1024 -O none,has_journal,filetype,sparse_super,large_file -L EXT3ROOT -d "$tree" "$media"
+if [[ $mode == needs-recovery ]]; then
+    # Require journal replay: incompat FILETYPE (2) + RECOVER (4).
+    # Editing a disposable copy is the entire point of this negative test.
+    printf '\\006\\000\\000\\000' | dd of="$media" bs=1 seek=1120 conv=notrunc status=none
+elif [[ $mode == no-journal ]]; then
+    # Replace compat flags at superblock + 0x5c, removing HAS_JOURNAL.
+    printf '\\000\\000\\000\\000' | dd of="$media" bs=1 seek=1116 conv=notrunc status=none
+fi
 if [[ $mode == bad-superblock ]]; then
     # EXT3 superblock starts at byte 1024; magic is at +56.
     printf '\000\000' | dd of="$media" bs=1 seek=1080 conv=notrunc status=none
@@ -84,17 +92,17 @@ qemu=(qemu-system-x86_64 -machine q35,accel=tcg -cpu max -m 768 -display none
 if [[ -n ${QEMU_DATA_DIR:-} ]]; then
     qemu+=(-L "$QEMU_DATA_DIR")
 fi
-if [[ $mode == bad-superblock ]]; then
+if [[ $mode != clean ]]; then
     result=0
     timeout 30 "${qemu[@]}" || result=$?
     [[ $result == 0 || $result == 124 ]]
     grep -Fq 'validated EXT3.so' "$work/serial.log"
     if grep -Fq 'EXT3_COMMON_V2_LINUX_HANDOFF_PASS' "$work/serial.log"; then
-        echo 'BOOT read a kernel from a corrupted EXT3 superblock' >&2
+        echo 'BOOT read a kernel from invalid EXT3 journal/superblock metadata' >&2
         exit 1
     fi
     dd if="$disk" bs=1M skip=65 count=128 status=none | cmp - "$media"
-    echo EXT3_COMMON_V2_CORRUPT_SUPERBLOCK_REFUSED
+    echo EXT3_COMMON_V2_INVALID_METADATA_REFUSED
     exit 0
 fi
 if ! timeout 120 "${qemu[@]}" ||
