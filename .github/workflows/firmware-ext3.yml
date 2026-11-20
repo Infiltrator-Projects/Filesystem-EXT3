@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ext3-v2-publish-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   ext3-boot:
     runs-on: ubuntu-24.04
