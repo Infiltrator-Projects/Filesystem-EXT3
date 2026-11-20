@@ -165,10 +165,10 @@ jobs:
           ! find dist -name '*.ko' | grep .
           (cd dist && sha256sum -c SHA256SUMS.txt)
           if gh release view "$tag" --json tagName >/dev/null 2>&1; then
-            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA" || {
-              echo "Refusing to overwrite an existing release from another revision" >&2
-              exit 1
-            }
+            if [[ "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" != "$GITHUB_SHA" ]]; then
+              echo "Immutable release $tag belongs to another commit; skip until VERSION increases"
+              exit 0
+            fi
             echo "Immutable V2 release already published from this revision"
             exit 0
           fi
