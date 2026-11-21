@@ -74,7 +74,8 @@ foreach(kind IN ITEMS ext3)
   native/filesystems/ext3/reader/core/ext2_core.c
   native/filesystems/ext3/reader/core/ext2_engine.c
   native/filesystems/ext3/reader/module/ext2_module.c)
- set_target_properties(ext-${kind}-driver PROPERTIES PREFIX "" OUTPUT_NAME "${module_name}" SUFFIX ".so")
+ set_target_properties(ext-${kind}-driver PROPERTIES PREFIX "" OUTPUT_NAME "${module_name}" SUFFIX ".so"
+  C_VISIBILITY_PRESET hidden)
  add_dependencies(ext-${kind}-driver ext3-firmware-elf)
  set_property(TARGET ext-${kind}-driver APPEND PROPERTY LINK_DEPENDS "${EXT3_FIRMWARE_ELF}")
  add_custom_command(TARGET ext-${kind}-driver POST_BUILD
@@ -178,11 +179,10 @@ if(BUILD_TESTING)
  # Release builds define NDEBUG, so explicitly keep assertions enabled here.
  target_compile_options(ext3-format-core-test PRIVATE -UNDEBUG -Wall -Wextra -Wpedantic -Werror)
  add_test(NAME ext3-format-core COMMAND ext3-format-core-test)
- # Ensure the portable format validation implementation is present in
- # EXT3.so itself; the kernel adapter uses this exact source tree too.
+ # Test the public provider and its feature policy through Common V2.
  add_executable(ext3-shared-core-link-test tests/test_canonical_so_link.c)
  target_include_directories(ext3-shared-core-link-test PRIVATE
-   "${CMAKE_CURRENT_SOURCE_DIR}/native/filesystems/ext3/core")
+   "${infiltratr_common_SOURCE_DIR}/include")
  target_compile_options(ext3-shared-core-link-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
  target_link_libraries(ext3-shared-core-link-test PRIVATE ext-ext3-driver)
  add_test(NAME ext3-shared-core-link COMMAND ext3-shared-core-link-test)

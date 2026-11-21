@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -eu
 module=${1:?EXT3.so required}
-symbols=$(readelf -W --dyn-syms "$module" | awk '$4 == "FUNC" && $7 != "UND" && $8 ~ /^infiltrator_filesystem_/ {print $8}')
+symbols=$(nm -D --defined-only --format=posix "$module" | awk '{print $1}')
 if [ "$symbols" != 'infiltrator_filesystem_api_v2' ]; then
     printf 'Expected only Common V2 export, found: %s\n' "$symbols" >&2
     exit 1
