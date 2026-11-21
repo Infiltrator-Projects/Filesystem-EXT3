@@ -207,6 +207,12 @@ static int mount(const IfsFsHostRuntimeV2 *h, void **out,
         !io_usable(h) || !h->allocate || !h->release)
         return IFS_FS_INVALID;
     *out = NULL;
+#if defined(IFS_EXT3_READ_ONLY_BUILD)
+    /* Both packaged hosted and freestanding EXT3 readers are read-only.
+     * Reject writable leases rather than silently negotiating write access. */
+    if (!(h->capabilities & IFS_FS_HOST_READ_ONLY))
+        return IFS_FS_ACCESS;
+#endif
     const size_t slot=session_free_slot();
     if (slot==IFS_EXT_V2_MAX_SESSIONS ||
         session_generation==UINTPTR_MAX) return IFS_FS_BUSY;

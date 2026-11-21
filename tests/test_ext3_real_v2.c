@@ -33,6 +33,10 @@ static int read_blocks(void *context,uint64_t offset,void *out,uint32_t n)
 }
 static void *allocate(void *ctx,size_t n){(void)ctx;return malloc(n);}
 static void release(void *ctx,void *p){(void)ctx;free(p);}
+static int forbidden_write(void *ctx,uint64_t at,const void *data,uint32_t n)
+{ (void)ctx;(void)at;(void)data;(void)n;return -1; }
+static int forbidden_flush(void *ctx)
+{ (void)ctx;return -1; }
 #define ENSURE(x) do { if(!(x)) { fprintf(stderr,"EXT3 REAL V2 %u: %s\n",\
 (unsigned)__LINE__,#x);return 1; } } while(0)
 
@@ -78,6 +82,18 @@ int main(int argc,char **argv)
         d[i].bytes=(uint64_t)st.st_size;
         h[i]=host(&d[i]);
         ENSURE(ifs_fs_host_v2_valid(&h[i]));
+        /* The shipped read-only V2 provider must refuse a valid writable
+         * host without touching filesystem data or returning a mount. */
+        IfsFsHostRuntimeV2 writable=h[i];
+        writable.capabilities=IFS_FS_HOST_EXCLUSIVE|IFS_FS_HOST_DURABLE;
+        writable.write_at=forbidden_write;
+        writable.flush=forbidden_flush;
+        ENSURE(ifs_fs_host_v2_valid(&writable));
+        IfsFsVolumeInfoV2 denied_info={.structure_bytes=sizeof(denied_info)};
+        void *denied=(void *)(uintptr_t)1u;
+        unsigned before=d[i].reads;
+        ENSURE(core->mount(&writable,&denied,&denied_info)==IFS_FS_ACCESS &&
+               denied==NULL && d[i].reads==before);
         uint32_t variant=123u;
         d[i].fail_on_read=1u;
         ENSURE(core->probe(&h[i],&variant)==IFS_FS_IO_ERROR && variant==0u);
