@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 name: Qualify packaged EXT3 Common V2 BOOT reads
+# BOOT integration is not ready. Run only by explicit dispatch after the
+# repository variable IFS_BOOT_INTEGRATION_READY has been set to true.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   ext3-boot:
+    if: ${{ vars.IFS_BOOT_INTEGRATION_READY == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
