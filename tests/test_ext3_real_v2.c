@@ -18,6 +18,7 @@ typedef struct {
     uint32_t sector;
     uint64_t bytes;
     unsigned reads;
+    uint64_t fail_at;
 } TestDisk;
 static int read_blocks(void *context,uint64_t offset,void *out,uint32_t n)
 {
@@ -25,7 +26,8 @@ static int read_blocks(void *context,uint64_t offset,void *out,uint32_t n)
     if (!d || !out || !n || offset%d->sector || n%d->sector ||
         n>d->sector || offset>d->bytes || n>d->bytes-offset ||
         offset>INT64_MAX) return -1;
-    if (pread(d->fd,out,n,(off_t)offset)!=(ssize_t)n) return -1;
+    if (offset==d->fail_at ||
+        pread(d->fd,out,n,(off_t)offset)!=(ssize_t)n) return -1;
     ++d->reads;
     return 0;
 }
@@ -71,6 +73,7 @@ int main(int argc,char **argv)
     void *handles[2]={NULL,NULL};
     const char expected[]="EXT3 Common V2 real native namespace";
     for (unsigned i=0;i<2u;++i) {
+        d[i].fail_at=UINT64_MAX;
         d[i].fd=open(argv[1],O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
         ENSURE(d[i].fd>=0);
         d[i].bytes=(uint64_t)st.st_size;
@@ -98,6 +101,26 @@ int main(int argc,char **argv)
             if(strcmp(entry.name,"kernel.bin")==0)found=1;
         }
         ENSURE(found && d[i].reads>0u);
+        const IfsFsDefragOpsV2 *defrag=(const IfsFsDefragOpsV2 *)
+            ifs_fs_group_v2(api,IFS_FS_GROUP_DEFRAG);
+        IfsFsExtentV2 extents[2]={{0}};
+        uint32_t count=0u;
+        ENSURE(defrag && defrag->map &&
+               defrag->map(handles[i],"/boot/kernel.bin",0u,extents,2u,
+                           &count)==IFS_FS_OK && count>0u);
+        /* On a one-KiB EXT3 filesystem, group descriptor zero starts at
+         * byte 2048 and records the allocation bitmap's block address. */
+        unsigned char group[4]={0};
+        ENSURE(pread(d[i].fd,group,sizeof(group),2048u)==4);
+        const uint64_t bitmap=(uint64_t)group[0] |
+            ((uint64_t)group[1]<<8) | ((uint64_t)group[2]<<16) |
+            ((uint64_t)group[3]<<24);
+        ENSURE(bitmap>=3u && bitmap*1024u<d[i].bytes);
+        d[i].fail_at=(bitmap*1024u / d[i].sector)*d[i].sector;
+        count=17u;
+        ENSURE(defrag->map(handles[i],"/boot/kernel.bin",0u,extents,2u,
+                           &count)==IFS_FS_IO_ERROR && count==0u);
+        d[i].fail_at=UINT64_MAX;
     }
     ENSURE(handles[0]!=handles[1]);
     IfsFsVolumeInfoV2 info={.structure_bytes=sizeof(info)};
