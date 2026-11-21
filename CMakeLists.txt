@@ -87,7 +87,10 @@ foreach(kind IN ITEMS ext3)
   _GNU_SOURCE _FILE_OFFSET_BITS=64 IFS_EXT_FORMAT_ID="${kind}"
  IFS_EXT3_READ_ONLY_BUILD=1 IFS_EXT3_FAMILY_BUILD=1)
  target_compile_options(ext-${kind}-driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
- target_link_options(ext-${kind}-driver PRIVATE -Wl,-z,defs)
+ target_link_options(ext-${kind}-driver PRIVATE -Wl,-z,defs
+  "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/module/v2-only.map")
+ set_property(TARGET ext-${kind}-driver APPEND PROPERTY LINK_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/module/v2-only.map")
  target_include_directories(ext-${kind}-driver PRIVATE
   "${EXT_SRC}" "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/include" "${CMAKE_CURRENT_SOURCE_DIR}/compat"
   "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}"
