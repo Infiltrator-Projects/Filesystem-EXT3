@@ -27,14 +27,7 @@ jobs:
           set -euo pipefail
           work="$RUNNER_TEMP/ext3-firmware"
           mkdir -p "$work"
-          boot=infiltrator-boot_0.1.72_amd64.deb
-          curl -fsSL --retry 3 \
-            "https://github.com/Infiltrator-Projects/Boot/releases/download/v0.1.72/$boot" \
-            -o "$work/$boot"
-          printf '%s  %s\n' \
-            d72bd059c175424cef33e18ec2be9754d50e4afcdf67d088c89faa54363e9e4a \
-            "$work/$boot" | sha256sum -c -
-          dpkg-deb -x "$work/$boot" "$work/package"
+          bash tests/require-rebuilt-boot.sh
       - name: Build one hosted EXT3.so containing the same freestanding V2 engine
         run: |
           set -euo pipefail
@@ -45,7 +38,7 @@ jobs:
           test -s "$work/build/EXT3.so"
           test -s "$work/build/firmware/EXT3.so"
           readelf -SW "$work/build/EXT3.so" | grep -F '.infiltrator_boot'
-          validator="$work/package/usr/lib/infiltrator-boot/validate-module"
+          validator="$IFS_BOOT_VALIDATOR"
           if ! "$validator" "$work/build/firmware/EXT3.so"; then
             echo 'Unmodified BOOT validator rejected the freestanding ELF' >&2
             readelf -hW "$work/build/firmware/EXT3.so"
@@ -79,7 +72,7 @@ jobs:
           test -s "$portable"
           test "$(find "$work/deb-root" -type f | wc -l)" -eq 2
           ! find "$work/deb-root" -name '*.ko' | grep .
-          "$work/package/usr/lib/infiltrator-boot/validate-module" "$portable"
+          "$IFS_BOOT_VALIDATOR" "$portable"
           runfile=$(find dist -maxdepth 1 -name '*.run' -print -quit)
           bash "$runfile" --profile aggressive --system-package-mode --build-only --output "$work/native"
           native=$(find "$work/native" -maxdepth 1 -name '*.deb' -print -quit)
@@ -89,7 +82,7 @@ jobs:
           dpkg-deb -x "$native" "$work/native-root"
           test "$(find "$work/native-root" -type f | wc -l)" -eq 2
           ! find "$work/native-root" -name '*.ko' | grep .
-          "$work/package/usr/lib/infiltrator-boot/validate-module" \
+          "$IFS_BOOT_VALIDATOR" \
             "$work/native-root/System/Filesystems/EXT3.so"
       - name: Load a genuine EFI-stub kernel and initramfs using the packaged module
         run: |
@@ -101,7 +94,7 @@ jobs:
           dpkg-deb -x "$work"/linux-image-unsigned-*.deb "$work/kernel"
           kernel="$work/kernel/boot/vmlinuz-${image#linux-image-}"
           test -s "$kernel"
-          boot="$work/package/usr/lib/infiltrator-boot/EFI/BOOT/BOOTX64.EFI"
+          boot="$IFS_BOOT_EFI"
           module="$work/deb-root/System/Filesystems/EXT3.so"
           bash tests/firmware-ext3.sh "$boot" "$module" "$kernel" "$work/vm"
           bash tests/firmware-ext3.sh "$boot" "$work/native-root/System/Filesystems/EXT3.so" "$kernel" "$work/native-vm"
