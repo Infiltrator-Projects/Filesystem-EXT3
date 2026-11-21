@@ -98,6 +98,19 @@ foreach(kind IN ITEMS ext3)
   target_include_directories(ext-${kind}-module-test PRIVATE "${infiltratr_common_SOURCE_DIR}/include")
   target_link_libraries(ext-${kind}-module-test PRIVATE ext-${kind}-driver InfiltratrCommon::Common)
   add_test(NAME ext-${kind}-module-contract COMMAND ext-${kind}-module-test)
+  # Real ext3 journalled media through production Common V2 namespace,
+  # including two simultaneously mounted host-sector geometries and
+  # non-reusable handles after unmount.
+  add_executable(ext3-v2-real-image-test tests/test_ext3_real_v2.c)
+  target_include_directories(ext3-v2-real-image-test PRIVATE
+    "${infiltratr_common_SOURCE_DIR}/include")
+  target_link_libraries(ext3-v2-real-image-test PRIVATE ext-${kind}-driver
+    InfiltratrCommon::Common)
+  target_compile_options(ext3-v2-real-image-test PRIVATE
+    -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME ext3-v2-real-media-and-stale-handle
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/ext3_real_v2.sh"
+      "$<TARGET_FILE:ext3-v2-real-image-test>")
   add_executable(ext3-v2-probe-test tests/test_ext_v2_probe.c)
   target_include_directories(ext3-v2-probe-test PRIVATE "${infiltratr_common_SOURCE_DIR}/include")
   # Synthetic metadata-only regression remains a test-only policy provider.
