@@ -125,6 +125,8 @@ int main(int argc,char **argv)
         ENSURE(core->read(handles[i],"/boot/kernel.bin",0u,actual,
                           sizeof(expected)-1u)==IFS_FS_OK &&
                memcmp(actual,expected,sizeof(expected)-1u)==0);
+        ENSURE(core->read(handles[i],"/boot/kernel.bin",
+                          sizeof(expected)-1u,actual,1u)==IFS_FS_INVALID);
         int found=0;
         for (uint32_t j=0;j<16u;++j) {
             int rc=core->directory_entry(handles[i],"/boot",j,&entry);
