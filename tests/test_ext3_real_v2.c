@@ -91,6 +91,20 @@ int main(int argc,char **argv)
                             .name_capacity=sizeof(name)};
         ENSURE(core->stat(handles[i],"/boot/kernel.bin",&entry)==IFS_FS_OK &&
                entry.size_bytes==sizeof(expected)-1u);
+        /* Exercise the public Common V2 STAT/LIST output contract with
+         * genuine EXT3 media; a short name buffer must remain untouched. */
+        {
+            char narrow_name[5] = {'X','X','X','X','X'};
+            const char untouched[5] = {'X','X','X','X','X'};
+            IfsFsEntryV2 narrow={.structure_bytes=sizeof(narrow),
+                                 .name=narrow_name,
+                                 .name_capacity=sizeof(narrow_name)};
+            ENSURE(core->stat(handles[i],"/boot/kernel.bin",&narrow)==IFS_FS_NO_SPACE);
+            ENSURE(memcmp(narrow_name,untouched,sizeof(narrow_name))==0);
+            ENSURE(core->directory_entry(handles[i],"/boot",0u,&narrow)==IFS_FS_NO_SPACE);
+            ENSURE(memcmp(narrow_name,untouched,sizeof(narrow_name))==0);
+            ENSURE(narrow.name_bytes==0u);
+        }
         char actual[sizeof(expected)]={0};
         ENSURE(core->read(handles[i],"/boot/kernel.bin",0u,actual,
                           sizeof(expected)-1u)==IFS_FS_OK &&
