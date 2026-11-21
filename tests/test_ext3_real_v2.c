@@ -78,7 +78,10 @@ int main(int argc,char **argv)
         d[i].bytes=(uint64_t)st.st_size;
         h[i]=host(&d[i]);
         ENSURE(ifs_fs_host_v2_valid(&h[i]));
-        uint32_t variant=0u;
+        uint32_t variant=123u;
+        d[i].fail_on_read=1u;
+        ENSURE(core->probe(&h[i],&variant)==IFS_FS_IO_ERROR && variant==0u);
+        d[i].fail_on_read=0u;d[i].reads=0u;
         ENSURE(core->probe(&h[i],&variant)==IFS_FS_OK && variant==3u);
         IfsFsVolumeInfoV2 info={.structure_bytes=sizeof(info)};
         ENSURE(core->mount(&h[i],&handles[i],&info)==IFS_FS_OK &&
