@@ -116,6 +116,16 @@ int main(int argc,char **argv)
                             .name_capacity=sizeof(name)};
         ENSURE(core->stat(handles[i],"/boot/kernel.bin",&entry)==IFS_FS_OK &&
                entry.size_bytes==sizeof(expected)-1u);
+        const IfsFsMetadataOpsV2 *meta=(const void *)ifs_fs_group_v2(api,IFS_FS_GROUP_METADATA);
+        IfsFsMetadataV2 metadata={.structure_bytes=sizeof(metadata)};
+        ENSURE(meta && meta->get && !meta->set &&
+               meta->header.capabilities==IFS_FS_META_GET_MODE);
+        ENSURE(meta->get(handles[i],"/boot/kernel.bin",&metadata)==IFS_FS_OK &&
+               metadata.mask==IFS_FS_META_GET_MODE &&
+               (metadata.mode&0170000u)==0100000u);
+        ENSURE(meta->get(handles[i],"/boot",&metadata)==IFS_FS_OK &&
+               (metadata.mode&0170000u)==0040000u);
+        ENSURE(meta->get(handles[i],"/absent",&metadata)==IFS_FS_NOT_FOUND);
         /* Exercise the public Common V2 STAT/LIST output contract with
          * genuine EXT3 media; a short name buffer must remain untouched. */
         {
