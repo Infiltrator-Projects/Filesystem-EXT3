@@ -111,6 +111,18 @@ int main(int argc,char **argv)
         IfsFsVolumeInfoV2 info={.structure_bytes=sizeof(info)};
         ENSURE(core->mount(&h[i],&handles[i],&info)==IFS_FS_OK &&
                handles[i] && info.variant==3u && info.block_bytes==1024u);
+        /* Independent superblock read, not the mounted parser's output. */
+        char expected_label[17]={0},actual_label[17]={0};
+        uint32_t label_bytes=UINT32_MAX;
+        ENSURE(pread(d[i].fd,expected_label,16u,1024u+0x78u)==16);
+        ENSURE(volume->label && !volume->set_label &&
+               volume->label(handles[i],actual_label,sizeof(actual_label),&label_bytes)==IFS_FS_OK &&
+               label_bytes==strlen(expected_label) && !strcmp(actual_label,expected_label));
+        if (label_bytes) {
+            char tiny='X';
+            ENSURE(volume->label(handles[i],&tiny,1u,&label_bytes)==IFS_FS_NO_SPACE &&
+                   !label_bytes && tiny=='X');
+        }
         char name[256]={0};
         IfsFsEntryV2 entry={.structure_bytes=sizeof(entry),.name=name,
                             .name_capacity=sizeof(name)};
