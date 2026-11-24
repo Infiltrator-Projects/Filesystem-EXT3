@@ -102,6 +102,16 @@ foreach(kind IN ITEMS ext3)
   target_include_directories(ext-${kind}-module-test PRIVATE "${infiltratr_common_SOURCE_DIR}/include")
   target_link_libraries(ext-${kind}-module-test PRIVATE ext-${kind}-driver InfiltratrCommon::Common)
   add_test(NAME ext-${kind}-module-contract COMMAND ext-${kind}-module-test)
+  add_executable(ext3-native-format-test tests/test_ext3_format.c)
+  target_link_libraries(ext3-native-format-test PRIVATE ext-${kind}-driver InfiltratrCommon::Common)
+  target_compile_options(ext3-native-format-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME ext3-native-format COMMAND ext3-native-format-test)
+  find_program(EXT3_E2FSCK NAMES e2fsck)
+  if(EXT3_E2FSCK)
+    add_test(NAME ext3-native-format-independent-oracle
+      COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/tests/ext3_format_oracle.sh"
+              "$<TARGET_FILE:ext3-native-format-test>" "${EXT3_E2FSCK}")
+  endif()
   # Real ext3 journalled media through production Common V2 namespace,
   # including two simultaneously mounted host-sector geometries and
   # non-reusable handles after unmount.
