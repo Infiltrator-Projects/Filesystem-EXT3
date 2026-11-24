@@ -20,8 +20,17 @@ typedef struct {
     unsigned reads;
     unsigned fail_on_read;
 } TestDisk;
+static const IfsFsCoreOpsV2 *unmount_during_read;
+static void *active_volume;
+static int observed_unmount;
 static int read_blocks(void *context,uint64_t offset,void *out,uint32_t n)
 {
+    if (unmount_during_read) {
+        const IfsFsCoreOpsV2 *ops=unmount_during_read;
+        unmount_during_read=NULL;
+        observed_unmount=ops->unmount(active_volume);
+        if (observed_unmount!=IFS_FS_BUSY) return -1;
+    }
     TestDisk *d=context;
     if (!d || !out || !n || offset%d->sector || n%d->sector ||
         n>d->sector || offset>d->bytes || n>d->bytes-offset ||
@@ -122,9 +131,13 @@ int main(int argc,char **argv)
             ENSURE(narrow.name_bytes==0u);
         }
         char actual[sizeof(expected)]={0};
+        active_volume=handles[i];
+        unmount_during_read=core;
+        observed_unmount=IFS_FS_INVALID;
         ENSURE(core->read(handles[i],"/boot/kernel.bin",0u,actual,
                           sizeof(expected)-1u)==IFS_FS_OK &&
                memcmp(actual,expected,sizeof(expected)-1u)==0);
+        ENSURE(!unmount_during_read && observed_unmount==IFS_FS_BUSY);
         ENSURE(core->read(handles[i],"/boot/kernel.bin",
                           sizeof(expected)-1u,actual,1u)==IFS_FS_INVALID);
         int found=0;
