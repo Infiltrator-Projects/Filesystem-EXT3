@@ -43,7 +43,9 @@ int main(int argc,char **argv)
     if(!ifs_fs_api_v2_valid(api,"ext3"))return 1;
     const IfsFsCoreOpsV2 *core=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_CORE);
     const IfsFsVolumeOpsV2 *vol=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_VOLUME);
-    if(!core || !vol || !vol->format)return 1;
+    const IfsFsDefragOpsV2 *defrag=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_DEFRAG);
+    if(!core || !vol || !vol->format || !defrag || !defrag->plan ||
+       !defrag->execute || !defrag->verify || !defrag->release_plan)return 1;
     char temp[]="/tmp/ifs-ext3-format.XXXXXX";
     if(argc!=1 && argc!=4)return 2;
     Media m={.bytes=64ull*1024u*1024u,.sector=512u};
@@ -127,6 +129,38 @@ int main(int argc,char **argv)
             CHECK(core->read(session,"/V2-B",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
             memset(payload,(int)(i+9u),sizeof(payload));
             CHECK(!memcmp(actual,payload,sizeof(actual)));
+        }
+        void *plan=NULL;
+        uint64_t moved=0;
+        const unsigned prior=m.writes;
+        CHECK(defrag->plan(session,"/",0u,&plan)==IFS_FS_OK && plan);
+        CHECK(defrag->execute(session,plan,&moved)==IFS_FS_ACCESS && !moved);
+        CHECK(m.writes==prior);
+        defrag->release_plan(session,plan);
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK);
+        CHECK(defrag->plan(session,"/",0u,&plan)==IFS_FS_OK && plan);
+        CHECK(core->create(session,"/BLOCKED",IFS_FS_ENTRY_FILE)==IFS_FS_BUSY);
+        CHECK(defrag->execute(session,plan,&moved)==IFS_FS_OK && moved==8u*sizeof(payload));
+        CHECK(defrag->verify(session,plan)==IFS_FS_OK);
+        defrag->release_plan(session,plan);
+        CHECK(defrag->verify(session,plan)==IFS_FS_INVALID);
+        /* Growth uses a distinct plan and reserves the trailing 10% in
+         * the allocation bitmap, rather than padding the logical files. */
+        CHECK(defrag->plan(session,"/",10u,&plan)==IFS_FS_OK && plan);
+        CHECK(defrag->execute(session,plan,&moved)==IFS_FS_OK);
+        CHECK(defrag->verify(session,plan)==IFS_FS_OK);
+        defrag->release_plan(session,plan);
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        CHECK(core->mount(&ro,&session,&info)==IFS_FS_OK);
+        IfsFsExtentV2 extents[4];uint32_t written=0;
+        CHECK(defrag->map(session,"/V2-A",0u,extents,4u,&written)==IFS_FS_OK &&
+              written==1u && extents[0].length==4u*sizeof(payload));
+        for(unsigned i=0;i<4u;++i) {
+            CHECK(core->read(session,"/V2-A",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
+            memset(payload,(int)(i+1u),sizeof(payload));CHECK(!memcmp(actual,payload,sizeof(actual)));
+            CHECK(core->read(session,"/V2-B",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
+            memset(payload,(int)(i+9u),sizeof(payload));CHECK(!memcmp(actual,payload,sizeof(actual)));
         }
         CHECK(core->unmount(session)==IFS_FS_OK);
         /* Fail the checkpoint barrier after a durable journal commit.
