@@ -76,7 +76,7 @@ int main(int argc,char **argv)
         (const IfsFsVolumeOpsV2 *)ifs_fs_group_v2(api,IFS_FS_GROUP_VOLUME);
     ENSURE(core && volume && core->probe && core->mount && core->unmount &&
            core->stat && core->directory_entry && core->read &&
-           !core->write && volume->query);
+           core->write && core->create && volume->query);
     ENSURE(core->unmount((void *)(uintptr_t)1u)==IFS_FS_INVALID);
     struct stat st;
     ENSURE(stat(argv[1],&st)==0 && st.st_size>0);
@@ -91,8 +91,8 @@ int main(int argc,char **argv)
         d[i].bytes=(uint64_t)st.st_size;
         h[i]=host(&d[i]);
         ENSURE(ifs_fs_host_v2_valid(&h[i]));
-        /* The shipped read-only V2 provider must refuse a valid writable
-         * host without touching filesystem data or returning a mount. */
+        /* Foreign 1 KiB layouts remain read-only. The native journal
+         * writer may not infer the journal mapping from other geometries. */
         IfsFsHostRuntimeV2 writable=h[i];
         writable.capabilities=IFS_FS_HOST_EXCLUSIVE|IFS_FS_HOST_DURABLE;
         writable.write_at=forbidden_write;
@@ -100,9 +100,8 @@ int main(int argc,char **argv)
         ENSURE(ifs_fs_host_v2_valid(&writable));
         IfsFsVolumeInfoV2 denied_info={.structure_bytes=sizeof(denied_info)};
         void *denied=(void *)(uintptr_t)1u;
-        unsigned before=d[i].reads;
-        ENSURE(core->mount(&writable,&denied,&denied_info)==IFS_FS_ACCESS &&
-               denied==NULL && d[i].reads==before);
+        ENSURE(core->mount(&writable,&denied,&denied_info)!=IFS_FS_OK &&
+               denied==NULL);
         uint32_t variant=123u;
         d[i].fail_on_read=1u;
         ENSURE(core->probe(&h[i],&variant)==IFS_FS_IO_ERROR && variant==0u);

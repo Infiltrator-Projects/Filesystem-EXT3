@@ -30,6 +30,8 @@ static int v2_leave_operation(int rc)
 typedef struct {
     IfsFsHostRuntimeV2 host;
     IfsExt2DropInVolume media;
+    uint32_t allocation_hint;
+    int mutation_fault;
 } CommonVolume;
 
 /* A V2 caller holds an opaque lifetime token, never an allocator address.
@@ -220,6 +222,9 @@ static int guarded_probe(const IfsFsHostRuntimeV2 *h, uint32_t *variant)
 }
 
 
+#if !defined(IFS_EXT3_READ_ONLY_BUILD)
+static int native_journal_recover(const IfsFsHostRuntimeV2 *h);
+#endif
 static int mount(const IfsFsHostRuntimeV2 *h, void **out,
                  IfsFsVolumeInfoV2 *info)
 {
@@ -232,10 +237,19 @@ static int mount(const IfsFsHostRuntimeV2 *h, void **out,
         return IFS_FS_INVALID;
     *out = NULL;
 #if defined(IFS_EXT3_READ_ONLY_BUILD)
-    /* Both packaged hosted and freestanding EXT3 readers are read-only.
-     * Reject writable leases rather than silently negotiating write access. */
+    /* Firmware remains a reader. The hosted module owns its journal. */
     if (!(h->capabilities & IFS_FS_HOST_READ_ONLY))
         return IFS_FS_ACCESS;
+#else
+    const int writable=!(h->capabilities&IFS_FS_HOST_READ_ONLY);
+    for(size_t i=0;i<IFS_EXT_V2_MAX_SESSIONS;++i)
+        if(sessions[i].token && (writable ||
+           !(sessions[i].volume->host.capabilities&IFS_FS_HOST_READ_ONLY)))
+            return IFS_FS_BUSY;
+    if(writable) {
+        const int recovered=native_journal_recover(h);
+        if(recovered!=IFS_FS_OK)return recovered;
+    }
 #endif
     const size_t slot=session_free_slot();
     if (slot==IFS_EXT_V2_MAX_SESSIONS ||
@@ -245,7 +259,8 @@ static int mount(const IfsFsHostRuntimeV2 *h, void **out,
     memset(v, 0, sizeof(*v));
     retain_host(&v->host, h);
     io = native_io(v);
-    /* No EXT3 journalled writes without a separately qualified replay path. */
+    /* The ext-family reader is never allowed to write EXT3 metadata
+     * directly. The hosted writer below owns all JBD transactions. */
     allow_write = 0;
     result = engine()->mount(&v->media, &io, allow_write);
     if (result != IFS_EXT2_OK) {
@@ -293,8 +308,9 @@ static int unmount(void *volume)
     h = v->host;
     v->media.mounted = 0u;
     v->media.writable = 0u;
+    const int rc=v->mutation_fault?IFS_FS_IO_ERROR:IFS_FS_OK;
     h.release(h.context, v);
-    return IFS_FS_OK;
+    return rc;
 }
 static int guarded_unmount(void *volume)
 {
@@ -523,18 +539,482 @@ static int guarded_read_file(void *v, const char *path, uint64_t pos, void *b, u
 }
 
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
-static int write_file(void *v, const char *path, uint64_t pos,
-                      const void *b, uint32_t n)
+enum { ALLOC_BS=4096, ALLOC_PATCHES=96, JBD_START=70u, JBD_LENGTH=1024u, JBD_RESERVED_END=1094u };
+#define JBD_MAGIC UINT32_C(0xc03b3998)
+typedef struct { uint32_t number; uint8_t *before,*after; int dirty; } AllocPatch;
+typedef struct {
+    CommonVolume *v;
+    AllocPatch patches[ALLOC_PATCHES];
+    unsigned count;
+    uint32_t blocks,inodes,hint;
+} AllocTxn;
+static uint32_t alloc_u16(const uint8_t *p)
+{return (uint32_t)p[0]|((uint32_t)p[1]<<8);}
+static uint32_t alloc_u32(const uint8_t *p)
+{return alloc_u16(p)|(alloc_u16(p+2)<<16);}
+static void alloc_p16(uint8_t *p,uint32_t n)
+{p[0]=(uint8_t)n;p[1]=(uint8_t)(n>>8);}
+static void alloc_p32(uint8_t *p,uint32_t n)
+{alloc_p16(p,n);alloc_p16(p+2,n>>16);}
+static int alloc_profile(CommonVolume *v)
 {
-    return file_io(v, path, pos, (void *)b, n, 1);
+    if(!valid(v))return IFS_FS_INVALID;
+    if(v->host.capabilities&IFS_FS_HOST_READ_ONLY)
+        return IFS_FS_ACCESS;
+    if(v->mutation_fault)return IFS_FS_IO_ERROR;
+    const IfsExt2Volume *f=&v->media.fs;
+    if(f->block_size!=ALLOC_BS || f->inode_size!=256u ||
+       f->first_data_block || f->blocks_per_group!=32768u ||
+       f->inodes_per_group!=1024u || f->group_count>128u ||
+       f->descriptor_size!=32u || f->feature_compat!=4u ||
+       f->feature_incompat!=2u || f->feature_ro_compat!=2u ||
+       f->state!=1u || f->super.first_inode!=11u ||
+       v->host.logical_sector_bytes>ALLOC_BS)return IFS_FS_UNSUPPORTED;
+    return IFS_FS_OK;
 }
-static int guarded_write_file(void *v, const char *path, uint64_t pos,
-                      const void *b, uint32_t n)
+static void alloc_release(AllocTxn *t)
 {
-    if (!v2_enter_operation()) return IFS_FS_BUSY;
-    return v2_leave_operation(write_file(v,path,pos,b,n));
+    for(unsigned i=0;i<t->count;++i)
+        t->v->host.release(t->v->host.context,t->patches[i].before);
+}
+static int alloc_patch(AllocTxn *t,uint32_t number,AllocPatch **out)
+{
+    if(number>=t->v->media.fs.total_blocks)return IFS_FS_CORRUPT;
+    for(unsigned i=0;i<t->count;++i)
+        if(t->patches[i].number==number){*out=&t->patches[i];return IFS_FS_OK;}
+    if(t->count>=ALLOC_PATCHES)return IFS_FS_NO_MEMORY;
+    const IfsFsHostRuntimeV2 *h=&t->v->host;
+    uint8_t *p=h->allocate(h->context,2u*ALLOC_BS);
+    if(!p)return IFS_FS_NO_MEMORY;
+    int rc=ifs_fs_host_read_bytes_v2(h,(uint64_t)number*ALLOC_BS,p,ALLOC_BS);
+    if(rc!=IFS_FS_OK){h->release(h->context,p);return rc;}
+    memcpy(p+ALLOC_BS,p,ALLOC_BS);
+    AllocPatch *a=&t->patches[t->count++];
+    *a=(AllocPatch){.number=number,.before=p,.after=p+ALLOC_BS};
+    *out=a;return IFS_FS_OK;
+}
+/* A bounded JBD v2 writer for the native formatter profile. The journal
+ * is itself on the actual EXT3 volume: no sidecar, legacy worker, or
+ * external filesystem process. Every target block is journalled before
+ * checkpoint; recovery validates the transaction before applying it. */
+static uint32_t jbe32(const uint8_t *p)
+{return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];}
+static void jput(uint8_t *p,uint32_t n)
+{p[0]=(uint8_t)(n>>24);p[1]=(uint8_t)(n>>16);p[2]=(uint8_t)(n>>8);p[3]=(uint8_t)n;}
+static int jread(const IfsFsHostRuntimeV2 *h,uint32_t block,uint8_t *p)
+{return ifs_fs_host_read_bytes_v2(h,(uint64_t)block*ALLOC_BS,p,ALLOC_BS);}
+static int jwrite(const IfsFsHostRuntimeV2 *h,uint32_t block,const uint8_t *p)
+{return ifs_fs_host_write_bytes_v2(h,(uint64_t)block*ALLOC_BS,p,ALLOC_BS);}
+static int jflush(const IfsFsHostRuntimeV2 *h)
+{return h->flush(h->context)?IFS_FS_IO_ERROR:IFS_FS_OK;}
+/* Prove the journal's physical mapping and the exact native allocation
+ * profile before using a fixed journal address. Foreign EXT3 geometry
+ * remains readable, but no writer or replay may guess its block layout. */
+static int journal_profile(const IfsFsHostRuntimeV2 *h,uint8_t sb[ALLOC_BS],
+                           uint8_t journal[ALLOC_BS],uint32_t *blocks)
+{
+    if(!ifs_fs_host_v2_valid(h) || (h->capabilities&IFS_FS_HOST_READ_ONLY) ||
+       h->logical_sector_bytes>ALLOC_BS || h->volume_bytes%ALLOC_BS ||
+       h->volume_bytes/ALLOC_BS<4096u ||
+       h->volume_bytes/ALLOC_BS>128ull*32768u)return IFS_FS_UNSUPPORTED;
+    int rc=jread(h,0,sb);if(rc!=IFS_FS_OK)return rc;
+    uint8_t *s=sb+1024u;
+    *blocks=alloc_u32(s+4);
+    if(alloc_u16(s+56)!=0xef53u || alloc_u16(s+58)!=1u ||
+       *blocks!=h->volume_bytes/ALLOC_BS || alloc_u32(s+20) ||
+       alloc_u32(s+24)!=2u || alloc_u32(s+28)!=2u ||
+       alloc_u32(s+32)!=32768u || alloc_u32(s+36)!=32768u ||
+       alloc_u32(s+40)!=1024u || alloc_u32(s+76)!=1u ||
+       alloc_u32(s+84)!=11u || alloc_u16(s+88)!=256u ||
+       alloc_u32(s+92)!=4u || (alloc_u32(s+96)&~4u)!=2u ||
+       alloc_u32(s+100)!=2u || alloc_u32(s+224)!=8u ||
+       alloc_u32(s+268u)!=JBD_START || alloc_u32(s+316u)!=69u ||
+       alloc_u32(s+332u)!=JBD_LENGTH*ALLOC_BS)
+        return IFS_FS_UNSUPPORTED;
+    uint8_t work[ALLOC_BS];
+    rc=jread(h,1u,work);if(rc!=IFS_FS_OK)return rc;
+    if(alloc_u32(work)!=2u || alloc_u32(work+4)!=3u ||
+       alloc_u32(work+8)!=4u)return IFS_FS_CORRUPT;
+    rc=jread(h,2u,work);if(rc!=IFS_FS_OK)return rc;
+    for(uint32_t i=0;i<JBD_RESERVED_END;++i)
+        if(!(work[i/8u]&(1u<<(i%8u))))return IFS_FS_CORRUPT;
+    rc=jread(h,4u,work);if(rc!=IFS_FS_OK)return rc;
+    const uint8_t *inode=work+7u*256u;
+    if(alloc_u16(inode)!=0100600u || alloc_u32(inode+4)!=JBD_LENGTH*ALLOC_BS ||
+       alloc_u32(inode+88)!=69u)return IFS_FS_CORRUPT;
+    for(uint32_t i=0;i<12u;++i)
+        if(alloc_u32(inode+40u+i*4u)!=JBD_START+i)return IFS_FS_CORRUPT;
+    rc=jread(h,69u,work);if(rc!=IFS_FS_OK)return rc;
+    for(uint32_t i=0;i<JBD_LENGTH-12u;++i)
+        if(alloc_u32(work+i*4u)!=JBD_START+12u+i)return IFS_FS_CORRUPT;
+    rc=jread(h,JBD_START,journal);if(rc!=IFS_FS_OK)return rc;
+    if(jbe32(journal)!=JBD_MAGIC || jbe32(journal+4)!=4u ||
+       jbe32(journal+12)!=ALLOC_BS || jbe32(journal+16)!=JBD_LENGTH ||
+       jbe32(journal+20)!=1u || !jbe32(journal+24) ||
+       jbe32(journal+36) || jbe32(journal+40) || jbe32(journal+44) ||
+       memcmp(journal+48,s+104,16u) || jbe32(journal+64)!=1u ||
+       jbe32(journal+28)>1u)return IFS_FS_CORRUPT;
+    return IFS_FS_OK;
+}
+static int journal_target(uint32_t n,uint32_t total)
+{return n<total && (n<69u || n>=JBD_RESERVED_END);}
+static int journal_finish(const IfsFsHostRuntimeV2 *h,uint8_t journal[ALLOC_BS],
+                          uint32_t sequence)
+{
+    /* Checkpointed data is durable before the journal becomes empty.
+     * The filesystem RECOVER bit is cleared only after the empty log
+     * itself has reached stable media. */
+    jput(journal+28,0u);
+    jput(journal+24,sequence==UINT32_MAX?1u:sequence+1u);
+    int rc=jwrite(h,JBD_START,journal);if(rc!=IFS_FS_OK)return rc;
+    rc=jflush(h);if(rc!=IFS_FS_OK)return rc;
+    uint8_t sb[ALLOC_BS];rc=jread(h,0,sb);if(rc!=IFS_FS_OK)return rc;
+    alloc_p32(sb+1024u+96u,alloc_u32(sb+1024u+96u)&~4u);
+    rc=jwrite(h,0,sb);return rc==IFS_FS_OK?jflush(h):rc;
+}
+static int native_journal_recover(const IfsFsHostRuntimeV2 *h)
+{
+    uint8_t sb[ALLOC_BS],journal[ALLOC_BS],descriptor[ALLOC_BS],commit[ALLOC_BS];
+    uint32_t total=0;
+    int rc=journal_profile(h,sb,journal,&total);
+    if(rc!=IFS_FS_OK)return rc;
+    const int dirty=(alloc_u32(sb+1024u+96u)&4u)!=0;
+    const uint32_t start=jbe32(journal+28),sequence=jbe32(journal+24);
+    if(!dirty)return start?IFS_FS_CORRUPT:IFS_FS_OK;
+    if(!start)return journal_finish(h,journal,sequence);
+    rc=jread(h,JBD_START+1u,descriptor);if(rc!=IFS_FS_OK)return rc;
+    if(jbe32(descriptor)!=JBD_MAGIC || jbe32(descriptor+4)!=1u ||
+       jbe32(descriptor+8)!=sequence)return IFS_FS_CORRUPT;
+    uint32_t targets[ALLOC_PATCHES],flags[ALLOC_PATCHES],count=0,at=12u;
+    for(;;) {
+        if(count>=ALLOC_PATCHES || at+8u>ALLOC_BS)return IFS_FS_CORRUPT;
+        uint32_t target=jbe32(descriptor+at),tag=jbe32(descriptor+at+4u);
+        at+=8u;
+        if(!journal_target(target,total) || (tag&~11u) ||
+           (!count && (tag&2u)) || (count && !(tag&2u)))
+            return IFS_FS_CORRUPT;
+        if(!(tag&2u)) {
+            if(at+16u>ALLOC_BS || memcmp(descriptor+at,journal+48,16u))
+                return IFS_FS_CORRUPT;
+            at+=16u;
+        }
+        for(uint32_t i=0;i<count;++i)
+            if(targets[i]==target)return IFS_FS_CORRUPT;
+        targets[count]=target;flags[count++]=tag;
+        if(tag&8u)break;
+    }
+    rc=jread(h,JBD_START+2u+count,commit);if(rc!=IFS_FS_OK)return rc;
+    /* A transaction without its durable commit was never checkpointed.
+     * Discard only this structurally valid, uncommitted native log. */
+    if(jbe32(commit)!=JBD_MAGIC || jbe32(commit+4)!=2u ||
+       jbe32(commit+8)!=sequence)return journal_finish(h,journal,sequence);
+    uint8_t *data=h->allocate(h->context,(size_t)count*ALLOC_BS);
+    if(!data)return IFS_FS_NO_MEMORY;
+    for(uint32_t i=0;i<count;++i) {
+        uint8_t *p=data+(size_t)i*ALLOC_BS;
+        rc=jread(h,JBD_START+2u+i,p);
+        if(rc!=IFS_FS_OK)goto done;
+        if(flags[i]&1u) {
+            if(jbe32(p)){rc=IFS_FS_CORRUPT;goto done;}
+            jput(p,JBD_MAGIC);
+        }
+        if(targets[i]==0u && (alloc_u16(p+1024u+56u)!=0xef53u ||
+           alloc_u32(p+1024u+4u)!=total ||
+           alloc_u32(p+1024u+96u)!=6u ||
+           memcmp(p+1024u+104u,journal+48,16u))) {
+            rc=IFS_FS_CORRUPT;goto done;
+        }
+    }
+    /* No cancellation after the first checkpoint write: complete the
+     * committed transaction or preserve the recoverable journal. */
+    for(uint32_t i=0;i<count;++i) {
+        rc=jwrite(h,targets[i],data+(size_t)i*ALLOC_BS);
+        if(rc!=IFS_FS_OK)goto done;
+    }
+    rc=jflush(h);
+    if(rc==IFS_FS_OK)rc=journal_finish(h,journal,sequence);
+done:
+    h->release(h->context,data);return rc;
+}
+static int alloc_commit(AllocTxn *t)
+{
+    CommonVolume *v=t->v;const IfsFsHostRuntimeV2 *h=&v->host;
+    uint8_t sb[ALLOC_BS],journal[ALLOC_BS],descriptor[ALLOC_BS]={0},data[ALLOC_BS];
+    uint32_t total=0;
+    int rc=journal_profile(h,sb,journal,&total);
+    if(rc!=IFS_FS_OK)return rc;
+    if(jbe32(journal+28) || (alloc_u32(sb+1024u+96u)&4u) ||
+       t->blocks>v->media.fs.free_blocks ||
+       t->inodes>v->media.fs.super.free_inodes_count)return IFS_FS_CORRUPT;
+    AllocPatch *super;rc=alloc_patch(t,0u,&super);
+    if(rc!=IFS_FS_OK)return rc;
+    super->dirty=1;
+    if(memcmp(sb,super->before,ALLOC_BS))return IFS_FS_CORRUPT;
+    alloc_p32(super->after+1024u+96u,6u);
+    uint32_t count=0,at=12u;
+    const uint32_t sequence=jbe32(journal+24);
+    jput(descriptor,JBD_MAGIC);jput(descriptor+4,1u);jput(descriptor+8,sequence);
+    AllocPatch *selected[ALLOC_PATCHES];
+    for(unsigned i=0;i<t->count;++i) {
+        AllocPatch *p=&t->patches[i];if(!p->dirty)continue;
+        if(!journal_target(p->number,total))return IFS_FS_CORRUPT;
+        selected[count++]=p;
+    }
+    for(uint32_t i=0;i<count;++i) {
+        AllocPatch *p=selected[i];
+        uint32_t tag=(i?2u:0u)|(i+1u==count?8u:0u)|
+                     (jbe32(p->after)==JBD_MAGIC?1u:0u);
+        jput(descriptor+at,p->number);jput(descriptor+at+4u,tag);at+=8u;
+        if(!i){memcpy(descriptor+at,journal+48,16u);at+=16u;}
+    }
+    if(h->cancelled && h->cancelled(h->context))return IFS_FS_BUSY;
+    /* Publish the recovery bit before the transaction becomes visible. */
+    alloc_p32(sb+1024u+96u,6u);
+    rc=jwrite(h,0u,sb);if(rc!=IFS_FS_OK)goto fail;
+    rc=jflush(h);if(rc!=IFS_FS_OK)goto fail;
+    rc=jwrite(h,JBD_START+1u,descriptor);if(rc!=IFS_FS_OK)goto fail;
+    for(uint32_t i=0;i<count;++i) {
+        memcpy(data,selected[i]->after,ALLOC_BS);
+        if(jbe32(data)==JBD_MAGIC)jput(data,0u);
+        rc=jwrite(h,JBD_START+2u+i,data);if(rc!=IFS_FS_OK)goto fail;
+    }
+    rc=jflush(h);if(rc!=IFS_FS_OK)goto fail;
+    jput(journal+28,1u);
+    rc=jwrite(h,JBD_START,journal);if(rc!=IFS_FS_OK)goto fail;
+    rc=jflush(h);if(rc!=IFS_FS_OK)goto fail;
+    memset(data,0,ALLOC_BS);
+    jput(data,JBD_MAGIC);jput(data+4,2u);jput(data+8,sequence);
+    rc=jwrite(h,JBD_START+2u+count,data);if(rc!=IFS_FS_OK)goto fail;
+    rc=jflush(h);if(rc!=IFS_FS_OK)goto fail;
+    for(uint32_t i=0;i<count;++i) {
+        rc=jwrite(h,selected[i]->number,selected[i]->after);
+        if(rc!=IFS_FS_OK)goto fail;
+    }
+    rc=jflush(h);if(rc!=IFS_FS_OK)goto fail;
+    rc=journal_finish(h,journal,sequence);if(rc!=IFS_FS_OK)goto fail;
+    v->media.fs.free_blocks-=t->blocks;
+    v->media.fs.super.free_blocks_count-=t->blocks;
+    v->media.fs.super.free_inodes_count-=t->inodes;
+    v->allocation_hint=t->hint;return IFS_FS_OK;
+fail:
+    v->mutation_fault=1;return rc;
+}
+/* Validate primary descriptors against the exact native formatter
+ * layout, and require reserved metadata bits to remain allocated. */
+static int alloc_group(AllocTxn *t,uint32_t group,AllocPatch **gdt,
+                        uint8_t **d,uint32_t *span)
+{
+    const IfsExt2Volume *f=&t->v->media.fs;
+    if(group>=f->group_count)return IFS_FS_CORRUPT;
+    int rc=alloc_patch(t,1u,gdt);if(rc!=IFS_FS_OK)return rc;
+    *d=(*gdt)->after+group*32u;
+    const uint32_t base=group*32768u;
+    uint64_t left=f->total_blocks-base;
+    *span=left>32768u?32768u:(uint32_t)left;
+    if(*span<=68u || alloc_u32(*d)!=base+2u ||
+       alloc_u32(*d+4)!=base+3u || alloc_u32(*d+8)!=base+4u ||
+       alloc_u16(*d+12)>*span-68u || alloc_u16(*d+14)>1024u)
+        return IFS_FS_CORRUPT;
+    return IFS_FS_OK;
+}
+static int alloc_new(AllocTxn *t,int inode,uint32_t *number)
+{
+    const IfsExt2Volume *f=&t->v->media.fs;
+    const uint32_t groups=f->group_count;
+    const uint32_t start=inode?0u:t->hint/32768u;
+    for(uint32_t i=0;i<groups;++i) {
+        const uint32_t g=(start+i)%groups;
+        AllocPatch *gd,*map,*sb;uint8_t *d;uint32_t span;
+        int rc=alloc_group(t,g,&gd,&d,&span);if(rc!=IFS_FS_OK)return rc;
+        uint32_t count=alloc_u16(d+(inode?14u:12u));
+        if(!count)continue;
+        rc=alloc_patch(t,alloc_u32(d+(inode?4u:0u)),&map);
+        if(rc!=IFS_FS_OK)return rc;
+        uint32_t lo=inode?(g?0u:10u):(g?68u:JBD_RESERVED_END),hi=inode?1024u:span;
+        for(uint32_t k=0;k<lo;++k)
+            if(!(map->after[k/8u]&(1u<<(k%8u))))return IFS_FS_CORRUPT;
+        uint32_t first=!inode && g==start && t->hint%32768u>=lo &&
+                       t->hint%32768u<hi?t->hint%32768u:lo;
+        for(uint32_t j=0;j<hi-lo;++j) {
+            const uint32_t k=lo+(first-lo+j)%(hi-lo);
+            uint8_t mask=(uint8_t)(1u<<(k%8u));
+            if(map->after[k/8u]&mask)continue;
+            rc=alloc_patch(t,0,&sb);if(rc!=IFS_FS_OK)return rc;
+            uint8_t *total=sb->after+1024u+(inode?16u:12u);
+            if(!alloc_u32(total))return IFS_FS_CORRUPT;
+            map->after[k/8u]|=mask;map->dirty=1;
+            alloc_p16(d+(inode?14u:12u),count-1u);gd->dirty=1;
+            alloc_p32(total,alloc_u32(total)-1u);sb->dirty=1;
+            if(inode){*number=g*1024u+k+1u;++t->inodes;}
+            else {
+                *number=g*32768u+k;t->hint=*number+1u;++t->blocks;
+                AllocPatch *p;rc=alloc_patch(t,*number,&p);
+                if(rc!=IFS_FS_OK)return rc;
+                memset(p->after,0,ALLOC_BS);p->dirty=1;
+            }
+            return IFS_FS_OK;
+        }
+        return IFS_FS_CORRUPT; /* descriptor free count disagrees */
+    }
+    return IFS_FS_NO_SPACE;
+}
+static int alloc_inode(AllocTxn *t,uint32_t n,AllocPatch **p,uint8_t **raw)
+{
+    if(!n || n>t->v->media.fs.total_inodes)return IFS_FS_CORRUPT;
+    const uint32_t g=(n-1u)/1024u,k=(n-1u)%1024u;
+    AllocPatch *gd;uint8_t *d;uint32_t span;
+    int rc=alloc_group(t,g,&gd,&d,&span);if(rc!=IFS_FS_OK)return rc;
+    rc=alloc_patch(t,alloc_u32(d+8)+k/16u,p);
+    if(rc==IFS_FS_OK)*raw=(*p)->after+(k%16u)*256u;
+    return rc;
+}
+static int alloc_checked(AllocTxn *t,uint32_t n,AllocPatch **out)
+{
+    const IfsExt2Volume *f=&t->v->media.fs;
+    if(n>=f->total_blocks || n%32768u<68u ||
+       (n>=69u && n<JBD_RESERVED_END))return IFS_FS_CORRUPT;
+    AllocPatch *gd,*map;uint8_t *d;uint32_t span;
+    int rc=alloc_group(t,n/32768u,&gd,&d,&span);if(rc!=IFS_FS_OK)return rc;
+    rc=alloc_patch(t,alloc_u32(d),&map);if(rc!=IFS_FS_OK)return rc;
+    uint32_t k=n%32768u;
+    if(!(map->after[k/8u]&(1u<<(k%8u))))return IFS_FS_CORRUPT;
+    return alloc_patch(t,n,out);
+}
+/* Allocate through the canonical direct/single/double/triple path.
+ * i_blocks counts both data and indirect sectors, not logical length. */
+static int alloc_data(AllocTxn *t,AllocPatch *ip,uint8_t *raw,
+                     uint32_t logical,AllocPatch **out)
+{
+    IfsExt2BlockPath path;
+    IfsExt2Status st=ifs_ext2_block_to_path(ALLOC_BS,logical,&path);
+    if(st!=IFS_EXT2_OK || !path.depth || path.depth>4u)return IFS_FS_UNSUPPORTED;
+    AllocPatch *owner=ip;
+    uint8_t *ptr=raw+40u+4u*path.offsets[0];
+    for(unsigned level=0;level<path.depth;++level) {
+        uint32_t n=alloc_u32(ptr);
+        if(!n) {
+            int rc=alloc_new(t,0,&n);if(rc!=IFS_FS_OK)return rc;
+            if(alloc_u32(raw+28)>UINT32_MAX-8u)return IFS_FS_NO_SPACE;
+            alloc_p32(raw+28,alloc_u32(raw+28)+8u);ip->dirty=1;
+            alloc_p32(ptr,n);owner->dirty=1;
+        }
+        AllocPatch *block;
+        int rc=alloc_checked(t,n,&block);if(rc!=IFS_FS_OK)return rc;
+        if(level+1u==path.depth){*out=block;return IFS_FS_OK;}
+        owner=block;ptr=block->after+4u*path.offsets[level+1u];
+    }
+    return IFS_FS_CORRUPT;
+}
+static int alloc_create(void *volume,const char *path,uint32_t type)
+{
+    CommonVolume *v=session_lookup(volume);
+    int rc=alloc_profile(v);if(rc!=IFS_FS_OK)return rc;
+    if(type!=IFS_FS_ENTRY_FILE || !path || path[0]!='/' || !path[1] ||
+       strchr(path+1,'/') || !strcmp(path,"/.") || !strcmp(path,"/.."))
+        return IFS_FS_UNSUPPORTED;
+    size_t len=strlen(path+1);if(len>255u)return IFS_FS_INVALID;
+    void *work=scratch(v);if(!work)return IFS_FS_NO_MEMORY;
+    IfsExt2Inode found,root;
+    rc=resolve(v,path,&found,NULL,NULL,work);
+    if(rc==IFS_FS_OK){rc=IFS_FS_EXISTS;goto done;}
+    if(rc!=IFS_FS_NOT_FOUND)goto done;
+    rc=status(engine()->root(&v->media,&root,work,ALLOC_BS));
+    if(rc!=IFS_FS_OK)goto done;
+    if(root.flags || !root.size || root.size%ALLOC_BS || root.size>UINT32_MAX) {
+        rc=IFS_FS_UNSUPPORTED;goto done;
+    }
+    AllocTxn t={.v=v,.hint=v->allocation_hint};
+    AllocPatch *rp,*fp,*dp=NULL;uint8_t *rr,*fr;uint32_t ino;
+    rc=alloc_inode(&t,2u,&rp,&rr);if(rc!=IFS_FS_OK)goto release;
+    rc=alloc_new(&t,1,&ino);if(rc!=IFS_FS_OK)goto release;
+    rc=alloc_inode(&t,ino,&fp,&fr);if(rc!=IFS_FS_OK)goto release;
+    memset(fr,0,256u);alloc_p16(fr,0100644u);alloc_p16(fr+26,1u);fp->dirty=1;
+    uint32_t at=0,rec=0;
+    /* A root-directory insertion reuses a validated record's slack.
+     * If none fits, append one native directory block. */
+    for(uint32_t logical=0;logical<root.size/ALLOC_BS && !rec;++logical) {
+        uint64_t physical;int hole;
+        rc=status(ifs_ext2_map_file_block(&v->media.fs,&root,logical,&physical,
+                                        &hole,work,ALLOC_BS));
+        if(rc!=IFS_FS_OK || hole || physical>UINT32_MAX) {
+            if(rc==IFS_FS_OK)rc=IFS_FS_CORRUPT;
+            goto release;
+        }
+        rc=alloc_checked(&t,(uint32_t)physical,&dp);if(rc!=IFS_FS_OK)goto release;
+        for(uint32_t pos=0;pos<ALLOC_BS;) {
+            uint8_t *d=dp->after+pos;
+            uint32_t n=alloc_u32(d),r=alloc_u16(d+4),nl=d[6],occupied=0;
+            if(ifs_ext2_validate_directory_record(pos,r,nl,n,ALLOC_BS,
+                       v->media.fs.total_inodes)!=IFS_EXT2_DIRECTORY_RECORD_OK) {
+                rc=IFS_FS_CORRUPT;goto release;
+            }
+            if(ifs_ext2_directory_record_can_insert(r,nl,n,(uint32_t)len,&occupied)) {
+                if(n)alloc_p16(d+4,occupied);
+                at=pos+occupied;rec=r-occupied;break;
+            }
+            pos+=r;
+        }
+    }
+    if(!rec) {
+        rc=alloc_data(&t,rp,rr,(uint32_t)(root.size/ALLOC_BS),&dp);
+        if(rc!=IFS_FS_OK)goto release;
+        alloc_p32(rr+4,(uint32_t)root.size+ALLOC_BS);rp->dirty=1;
+        at=0;rec=ALLOC_BS;
+    }
+    uint8_t *d=dp->after+at;memset(d,0,rec);
+    alloc_p32(d,ino);alloc_p16(d+4,rec);d[6]=(uint8_t)len;d[7]=1u;
+    memcpy(d+8,path+1,len);dp->dirty=1;
+    rc=alloc_commit(&t);
+release:
+    alloc_release(&t);
+done:
+    unscratch(v,work);return rc;
+}
+static int guarded_alloc_create(void *volume,const char *path,uint32_t type)
+{
+    if(!v2_enter_operation())return IFS_FS_BUSY;
+    return v2_leave_operation(alloc_create(volume,path,type));
+}
+static int alloc_append(void *volume,const char *path,uint64_t pos,
+                       const void *data,uint32_t length)
+{
+    CommonVolume *v=session_lookup(volume);
+    int rc=alloc_profile(v);if(rc!=IFS_FS_OK)return rc;
+    if(!data || !length || length>65536u)return IFS_FS_UNSUPPORTED;
+    void *work=scratch(v);if(!work)return IFS_FS_NO_MEMORY;
+    IfsExt2Inode inode;
+    rc=resolve(v,path,&inode,NULL,NULL,work);if(rc!=IFS_FS_OK)goto done;
+    if(ifs_ext2_inode_type(&inode)!=IFS_EXT2_NODE_REGULAR || inode.flags ||
+       pos>inode.size || inode.size>UINT32_MAX || pos>UINT32_MAX || length>UINT32_MAX-pos) {
+        rc=IFS_FS_UNSUPPORTED;goto done;
+    }
+    AllocTxn t={.v=v,.hint=v->allocation_hint};
+    AllocPatch *ip;uint8_t *raw;
+    rc=alloc_inode(&t,inode.number,&ip,&raw);if(rc!=IFS_FS_OK)goto release;
+    const uint8_t *src=data;uint32_t left=length;
+    while(left) {
+        uint32_t logical=(uint32_t)(pos/ALLOC_BS),skip=(uint32_t)(pos%ALLOC_BS);
+        uint32_t n=ALLOC_BS-skip;if(n>left)n=left;
+        AllocPatch *dp;
+        rc=alloc_data(&t,ip,raw,logical,&dp);if(rc!=IFS_FS_OK)goto release;
+        memcpy(dp->after+skip,src,n);dp->dirty=1;
+        pos+=n;src+=n;left-=n;
+    }
+    if(pos>inode.size)alloc_p32(raw+4,(uint32_t)pos);
+    ip->dirty=1;
+    rc=alloc_commit(&t);
+release:
+    alloc_release(&t);
+done:
+    unscratch(v,work);return rc;
 }
 
+static int guarded_write_file(void *v,const char *path,uint64_t pos,
+                              const void *data,uint32_t length)
+{
+    if(!v2_enter_operation())return IFS_FS_BUSY;
+    return v2_leave_operation(alloc_append(v,path,pos,data,length));
+}
 #endif
 
 /* Expose the canonical EXT2 block map through Common V2. This is an
@@ -645,7 +1125,8 @@ static int volume_sync(void *mounted)
 {
     CommonVolume *v = session_lookup(mounted);
     if (!valid(v)) return IFS_FS_INVALID;
-    if (!v->media.writable) return IFS_FS_OK;
+    if(v->mutation_fault)return IFS_FS_IO_ERROR;
+    if(v->host.capabilities&IFS_FS_HOST_READ_ONLY)return IFS_FS_OK;
     return v->host.flush && v->host.flush(v->host.context) == 0 ?
         IFS_FS_OK : IFS_FS_IO_ERROR;
 }
@@ -900,7 +1381,7 @@ static const IfsFsCoreOpsV2 core_group = {
 #if defined(IFS_EXT3_READ_ONLY_BUILD)
         IFS_FS_CORE_READ},
 #else
-        IFS_FS_CORE_READ | IFS_FS_CORE_WRITE},
+        IFS_FS_CORE_READ | IFS_FS_CORE_WRITE | IFS_FS_CORE_CREATE},
 #endif
     .probe = guarded_probe,
     .mount = guarded_mount,
@@ -909,7 +1390,8 @@ static const IfsFsCoreOpsV2 core_group = {
     .directory_entry = guarded_directory_entry,
     .read = guarded_read_file,
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
-    .write = guarded_write_file
+    .write = guarded_write_file,
+    .create = guarded_alloc_create
 #endif
 };
 /* Expose ownership and permissions from the same verified inode used

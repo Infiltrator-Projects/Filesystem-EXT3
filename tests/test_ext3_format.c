@@ -106,7 +106,45 @@ int main(int argc,char **argv)
     CHECK(core->directory_entry(session,"/",0u,&entry)==IFS_FS_END);
     CHECK(vol->format(&h,3u,"EXT3TEST",0u)==IFS_FS_BUSY);
     CHECK(core->unmount(session)==IFS_FS_OK);
-    CHECK(core->mount(&h,&session,&info)==IFS_FS_ACCESS && !session);
+    CHECK(core->create && core->write);
+    if(argc==1) {
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK && session);
+        CHECK(core->create(session,"/V2-A",IFS_FS_ENTRY_FILE)==IFS_FS_OK);
+        CHECK(core->create(session,"/V2-B",IFS_FS_ENTRY_FILE)==IFS_FS_OK);
+        uint8_t payload[65536],actual[65536];
+        for(unsigned i=0;i<4u;++i) {
+            memset(payload,(int)(i+1u),sizeof(payload));
+            CHECK(core->write(session,"/V2-A",(uint64_t)i*sizeof(payload),payload,sizeof(payload))==IFS_FS_OK);
+            memset(payload,(int)(i+9u),sizeof(payload));
+            CHECK(core->write(session,"/V2-B",(uint64_t)i*sizeof(payload),payload,sizeof(payload))==IFS_FS_OK);
+        }
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        CHECK(core->mount(&ro,&session,&info)==IFS_FS_OK);
+        for(unsigned i=0;i<4u;++i) {
+            CHECK(core->read(session,"/V2-A",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
+            memset(payload,(int)(i+1u),sizeof(payload));
+            CHECK(!memcmp(actual,payload,sizeof(actual)));
+            CHECK(core->read(session,"/V2-B",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
+            memset(payload,(int)(i+9u),sizeof(payload));
+            CHECK(!memcmp(actual,payload,sizeof(actual)));
+        }
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        /* Fail the checkpoint barrier after a durable journal commit.
+         * A subsequent exclusive mount must replay through the same SO. */
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK);
+        m.fail_flush=m.flushes+5u;
+        memset(payload,0x5a,sizeof(payload));
+        CHECK(core->write(session,"/V2-A",4u*sizeof(payload),payload,sizeof(payload))!=IFS_FS_OK);
+        CHECK(core->unmount(session)==IFS_FS_IO_ERROR);
+        m.fail_flush=0u;
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK);
+        CHECK(core->read(session,"/V2-A",4u*sizeof(payload),actual,sizeof(actual))==IFS_FS_OK);
+        CHECK(!memcmp(payload,actual,sizeof(actual)));
+        CHECK(core->unmount(session)==IFS_FS_OK);
+    } else {
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK && session);
+        CHECK(core->unmount(session)==IFS_FS_OK);
+    }
     puts("EXT3 Common V2 native format, probe, root and mount PASS");
     result=0;
 done:
