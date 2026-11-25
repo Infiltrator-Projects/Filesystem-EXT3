@@ -1,5 +1,7 @@
 # EXT3 native engine ownership
 
+> **Historical source-provenance record.** The account below describes the earlier migration baseline, not the installed provider or current public ABI. The sole production interface is Common V2 via the canonical shared object; no separate filesystem-specific kernel or EFI driver is installed. The [current README](README.md) and [release workflow](.github/workflows/native-release.yml) govern current capabilities and distribution. Historical relocation adapters do not establish public V2 operation support.
+
 The canonical EXT3 format core and EXT3-only Defragmenter adapter are committed and built in this repository. Their initial source ancestry includes a pinned historical snapshot from `Filesystem-EXT4@5c4e11f04a9b0f5c56aae96e622534614d3486b0`, but the package builder no longer clones or executes that external engine.
 
 The Linux `ext3.ko` driver source was consolidated from central `Filesystems@a253fb724ce1fd760a361219281effb6abd71367` on 6 November 2026 and is built locally. Original code attribution remains intact. `EXT3.so` and `ext3.ko` are distinct format-surface adapters, not interchangeable binaries.
