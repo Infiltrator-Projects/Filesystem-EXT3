@@ -18,10 +18,15 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - name: Install portable filesystem qualification dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential binutils cmake git pkg-config libssl-dev libsqlite3-dev dpkg-dev e2fsprogs
-      - name: Build exact source-owned portable V2 DEB and source-embedded RUN
+      - name: Build exact source-owned portable V2 DEB and source-first RUN
         run: |
           set -euo pipefail
           python3 standalone/release.py release
+          bootstrap="$(find dist -maxdepth 1 -type f -name '*.run' -print -quit)"
+          test -s "$bootstrap"
+          test "$(wc -c < "$bootstrap")" -lt 8192
+          if grep -aF '__IFS_SOURCE_PAYLOAD_BELOW__' "$bootstrap"; then exit 1; fi
+          grep -F "$GITHUB_SHA" "$bootstrap"
           python3 standalone/check-package.py dist/*.deb --profile portable
           test "$(find dist -maxdepth 1 -name '*.deb' | wc -l)" -eq 1
           test "$(find dist -maxdepth 1 -name '*.run' | wc -l)" -eq 1
@@ -86,10 +91,11 @@ jobs:
             exit 1
           fi
           (cd dist && sha256sum *.deb *.run > SHA256SUMS.txt)
-          gh release create "$tag" dist/*.deb dist/*.run dist/SHA256SUMS.txt \
+          gh release create "$tag" dist/*.deb dist/*.run \
             --target "$GITHUB_SHA" \
             --title "EXT3 Common V2 filesystem $(cat VERSION)" \
             --notes "Independently qualified EXT3 Common V2 hosted and freestanding source-owned modules, packaged as portable DEB and CPU-native source RUN. No BOOT or OVMF integration claim, V1 driver or kernel module."
           mkdir -p "$RUNNER_TEMP/released"
-          gh release download "$tag" --dir "$RUNNER_TEMP/released"
+          gh release download "$tag" -p '*.deb' -p '*.run' --dir "$RUNNER_TEMP/released"
+          cp dist/SHA256SUMS.txt "$RUNNER_TEMP/released/"
           (cd "$RUNNER_TEMP/released" && sha256sum -c SHA256SUMS.txt)
