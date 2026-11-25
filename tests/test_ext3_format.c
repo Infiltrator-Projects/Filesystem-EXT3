@@ -175,6 +175,20 @@ int main(int argc,char **argv)
         IfsFsExtentV2 extents[4];uint32_t written=0;
         CHECK(defrag->map(session,"/V2-A",0u,extents,4u,&written)==IFS_FS_OK &&
               written==1u && extents[0].length==4u*sizeof(payload));
+        /* Independently validate the whole-volume allocation cursor after growth. */
+        const IfsFsAllocationOpsV2 *allocation=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_ALLOCATION);
+        CHECK(allocation && allocation->map);
+        uint64_t cursor=0u,unknown=0u,free_bytes=0u;
+        for(unsigned page=0u;;++page){
+            IfsFsAllocationRangeV2 ranges[64];uint32_t count=0u;uint64_t next=0u;
+            CHECK(page<65536u);
+            int status=allocation->map(session,cursor,ranges,64u,&count);
+            CHECK(ifs_fs_allocation_page_v2_valid(h.volume_bytes,cursor,status,ranges,64u,count,&next,&unknown));
+            for(uint32_t k=0u;k<count;++k)if(ranges[k].state==IFS_FS_SPACE_FREE)free_bytes+=ranges[k].length;
+            cursor=next;
+            if(status==IFS_FS_END)break;
+        }
+        CHECK(cursor==h.volume_bytes && !unknown && free_bytes==info.free_bytes);
         /* Independent physical proof of the 10% reservation. The fixture
          * uses 4096-byte blocks and native primary group bitmaps. Both
          * contiguous file runs must have ceil(64/10) trailing free blocks. */
