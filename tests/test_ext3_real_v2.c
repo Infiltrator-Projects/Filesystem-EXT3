@@ -176,7 +176,16 @@ int main(int argc,char **argv)
         d[i].reads=0u;
         ENSURE(defrag && defrag->map &&
                defrag->map(handles[i],"/boot/kernel.bin",0u,extents,2u,
-                           &count)==IFS_FS_OK && count>0u);
+                           &count)==IFS_FS_OK && count==1u);
+        ENSURE(extents[0].logical_offset==0u &&
+               extents[0].length==sizeof(expected)-1u &&
+               !extents[0].flags && !extents[0].reserved);
+        count=17u;
+        ENSURE(defrag->map(handles[i],"/boot/kernel.bin",1u,extents,2u,
+                           &count)==IFS_FS_END && count==0u);
+        d[i].reads=0u;
+        ENSURE(defrag->map(handles[i],"/boot/kernel.bin",0u,extents,2u,
+                           &count)==IFS_FS_OK && count==1u);
         /* The final read of a successful map is a native extent/bitmap
          * validation read, not the earlier pathname traversal. Interrupt
          * precisely that callback on the repeat operation. */
