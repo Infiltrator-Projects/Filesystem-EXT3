@@ -94,7 +94,7 @@ jobs:
           gh release create "$tag" dist/*.deb dist/*.run \
             --target "$GITHUB_SHA" \
             --title "EXT3 Common V2 filesystem $(cat VERSION)" \
-            --notes "Independently qualified EXT3 Common V2 hosted and freestanding source-owned modules, packaged as portable DEB and CPU-native source RUN. No BOOT or OVMF integration claim, V1 driver or kernel module."
+            --notes "Independently qualified EXT3 Common V2 hosted and freestanding source-owned modules. Hosted CORE.CREATE/WRITE support regular files in the native 4 KiB formatter profile using on-volume JBD transactions and replay on exclusive mount. Foreign layouts and firmware remain read-only. Native disposable-image interleaved file writes, byte readback, injected checkpoint failure and journal replay pass. DEFRAG.MAP remains read-only; no relocation or BOOT/OVMF integration claim. Portable DEB and CPU-native source RUN; no V1 driver or kernel module."
           mkdir -p "$RUNNER_TEMP/released"
           gh release download "$tag" -p '*.deb' -p '*.run' --dir "$RUNNER_TEMP/released"
           cp dist/SHA256SUMS.txt "$RUNNER_TEMP/released/"
