@@ -1,32 +1,36 @@
 # Filesystem-EXT3
 
-**Independent source builds are available; full filesystem qualification is still in progress.**
+## 1. Purpose and format scope
 
-This repository preserves the host-neutral EXT3/JBD format core imported from `Infiltrator-Projects/Filesystems`. `EXT3.so` is now built from this repository's own CMake source, and `ext3.ko` is built from the locally owned Linux VFS source tree. A genuinely qualified UEFI `.efi` driver and full Linux-root/real-media recovery qualification remain separate unfinished work.
+Third extended filesystem, including JBD journal semantics. This repository owns the format-specific implementation of `EXT3.so` for InfiltratorOS.
 
-The actual migration boundary and remaining work are recorded in [MIGRATION_STATUS.md](MIGRATION_STATUS.md). The filesystem format and journal invariants are described in [the original format design](native/filesystems/ext3/DESIGN.md).
+## 2. On-disk architecture and invariants
 
-## Verified source-core scope
+Ext block groups, bitmaps, inode tables and indirect block mappings remain format structures; journal state governs whether a consistent read or write is possible. Native format must acquire a unique volume identity before destructive writes.
 
-The independent [C regression tests](tests/ext3_core_test.c) check a bounded subset of geometry, group mapping, directory records, hash/indirect mapping interfaces and journal-header/superblock rejection paths. The [EXT3 core CI workflow](.github/workflows/ext3-core.yml) builds and executes these tests with GCC and Clang under address and undefined-behaviour sanitizers.
+## 3. Common V2 implementation and capabilities
 
-Passing these tests establishes **only host-neutral core-level validation**. It does not establish real media read/write compatibility, journal replay/recovery, formatting, filesystem installation, Defragmenter integration, or safe production use.
+Hosted Common V2 source declares probe, mount, stat, read, write and format. This is broader than the earlier probe-only documentation. Check the operation mask and journal-state restrictions before calling a mutation. The canonical entry point is `infiltrator_filesystem_api_v2`. Consumers must negotiate the actual profile and operation masks and use bounded, partition-relative host I/O. A source-level callback does not by itself establish that every format variant or host profile is qualified.
 
-## Installer files
+## 4. Integrity, mutation, allocation and recovery
 
-- `/System/Filesystems/EXT3.so`
-- `/System/Resources/Documentation/Filesystem-EXT3.pdf`
-- `/System/Kernel/Filesystems/ext3.ko`
+Core tests and hosted media tests do not prove journal replay, power-failure recovery, production firmware or kernel-root mounting. For destructive operations, require the applicable exclusive writable host, durability contract and format-specific validation. Never silently substitute a kernel or FUSE driver or treat a rejected or unavailable operation as success. Preserve original disk-format semantics; relocation and recovery are separate from ordinary file I/O.
 
-The published Debian package installs these three regular files. A manual native RUN compiles the shared object and Linux adapter locally, generates the PDF, and replaces all three files. It uses the running kernel headers by default. Use `--kernel-build DIRECTORY` for a prepared kernel build with `Module.symvers`. The kernel module is stored for manual use.
+## 5. Build, installation and release
 
-InfiltratorOS calls `--system-package-mode` and decides which outputs need updating. Its worker builds a missing or older SO, repairs the PDF independently, and stores the matching released kernel module when available. Use `--build-only --output DIRECTORY` to build a Debian package.
+The target installation is `/System/Filesystems/EXT3.so` and `/System/Resources/Documentation/Filesystem-EXT3.pdf`. The project release policy is a portable amd64 DEB and a CPU-native source-first RUN, with GitHub's automatic source archive; do not treat this policy statement as verification of the current installer payload. The release workflow is the authoritative executable build and package specification. Historical adapters and test artifacts are not additional production filesystem authorities.
 
-## Strict Common V2 production boundary (1.0.12)
+## 6. Qualification and limitations
 
-The installed EXT3.so no longer contains the legacy Defragmenter worker and
-V1 host services; these are retained only in test binaries. Its current
-Common V2 operations are read-only volume probe, mount/session lifecycle
-and volume query, not file namespace traversal or an operating-system VFS
-mount. Journal-aware Common V2 namespace and Kernel integration remain to
-be implemented and qualified without native driver fallbacks.
+[Recorded qualification workflow](https://github.com/Infiltrator-Projects/Filesystem-EXT3/actions/runs/45520241461) · [Current workflows](https://github.com/Infiltrator-Projects/Filesystem-EXT3/actions?query=branch%3Amain). A successful workflow establishes the tested scope only, not complete original-format parity, physical-media crash safety, or production BOOT/kernel integration. Use disposable images for destructive qualification.
+
+## 7. Technical references and provenance
+
+- [Provider implementation](module/ext3_common.c)
+- [Native design](native/filesystems/ext3/DESIGN.md)
+- [Migration and source history](MIGRATION_STATUS.md)
+- [Original-format reference source](docs/EXT3.pages) and [PDF](docs/EXT3.pdf)
+- [Project philosophy](docs/PHILOSOPHY.md)
+- [Common ABI](https://github.com/Infiltrator-Projects/Libraries)
+
+The original-format reference and historical migration notes describe different evidence from the current production provider. When descriptions disagree, the current exported descriptor, implementation, executable tests and exact-revision release evidence take precedence.
