@@ -45,7 +45,8 @@ int main(int argc,char **argv)
     const IfsFsVolumeOpsV2 *vol=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_VOLUME);
     const IfsFsDefragOpsV2 *defrag=(const void*)ifs_fs_group_v2(api,IFS_FS_GROUP_DEFRAG);
     if(!core || !vol || !vol->format || !defrag || !defrag->plan ||
-       !defrag->execute || !defrag->verify || !defrag->release_plan)return 1;
+       !defrag->execute || !defrag->verify || !defrag->recover ||
+       !(defrag->header.capabilities&IFS_FS_DEFRAG_RECOVER) || !defrag->release_plan)return 1;
     char temp[]="/tmp/ifs-ext3-format.XXXXXX";
     if(argc!=1 && argc!=4)return 2;
     Media m={.bytes=64ull*1024u*1024u,.sector=512u};
@@ -133,6 +134,8 @@ int main(int argc,char **argv)
         void *plan=NULL;
         uint64_t moved=0;
         const unsigned prior=m.writes;
+        uint64_t repaired=UINT64_MAX;
+        CHECK(defrag->recover(session,0u,&repaired)==IFS_FS_ACCESS && !repaired);
         CHECK(defrag->plan(session,"/",0u,&plan)==IFS_FS_OK && plan);
         CHECK(defrag->execute(session,plan,&moved)==IFS_FS_ACCESS && !moved);
         CHECK(m.writes==prior);
@@ -145,8 +148,24 @@ int main(int argc,char **argv)
         CHECK(defrag->verify(session,plan)==IFS_FS_OK);
         defrag->release_plan(session,plan);
         CHECK(defrag->verify(session,plan)==IFS_FS_INVALID);
-        /* Growth uses a distinct plan and reserves the trailing 10% in
-         * the allocation bitmap, rather than padding the logical files. */
+        /* Start Growth on an independently recreated fragmented corpus,
+         * not the packed result of the preceding operation. */
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        CHECK(vol->format(&h,3u,"EXT3TEST",0u)==IFS_FS_OK);
+        CHECK(core->mount(&h,&session,&info)==IFS_FS_OK);
+        CHECK(core->create(session,"/V2-A",IFS_FS_ENTRY_FILE)==IFS_FS_OK);
+        CHECK(core->create(session,"/V2-B",IFS_FS_ENTRY_FILE)==IFS_FS_OK);
+        for(unsigned i=0;i<4u;++i) {
+            memset(payload,(int)(i+1u),sizeof(payload));
+            CHECK(core->write(session,"/V2-A",(uint64_t)i*sizeof(payload),payload,sizeof(payload))==IFS_FS_OK);
+            memset(payload,(int)(i+9u),sizeof(payload));
+            CHECK(core->write(session,"/V2-B",(uint64_t)i*sizeof(payload),payload,sizeof(payload))==IFS_FS_OK);
+        }
+        IfsFsExtentV2 before[8];uint32_t before_count=0;
+        CHECK(defrag->map(session,"/V2-A",0u,before,8u,&before_count)==IFS_FS_OK &&
+              before_count>1u);
+        CHECK(defrag->map(session,"/V2-B",0u,before,8u,&before_count)==IFS_FS_OK &&
+              before_count>1u);
         CHECK(defrag->plan(session,"/",10u,&plan)==IFS_FS_OK && plan);
         CHECK(defrag->execute(session,plan,&moved)==IFS_FS_OK);
         CHECK(defrag->verify(session,plan)==IFS_FS_OK);
@@ -156,6 +175,21 @@ int main(int argc,char **argv)
         IfsFsExtentV2 extents[4];uint32_t written=0;
         CHECK(defrag->map(session,"/V2-A",0u,extents,4u,&written)==IFS_FS_OK &&
               written==1u && extents[0].length==4u*sizeof(payload));
+        /* Independent physical proof of the 10% reservation. The fixture
+         * uses 4096-byte blocks and native primary group bitmaps. Both
+         * contiguous file runs must have ceil(64/10) trailing free blocks. */
+        const char *growth_paths[]={"/V2-A","/V2-B"};
+        for(unsigned f=0u;f<2u;++f) {
+            CHECK(defrag->map(session,growth_paths[f],0u,extents,4u,&written)==IFS_FS_OK &&
+                  written==1u && extents[0].length==4u*sizeof(payload));
+            uint64_t end=(extents[0].physical_offset+extents[0].length)/4096u;
+            for(unsigned n=0u;n<7u;++n) {
+                uint64_t block=end+n,group=block/32768u,bit=block%32768u;
+                unsigned char b=0xffu;
+                CHECK(pread(m.fd,&b,1u,(off_t)((group*32768u+2u)*4096u+bit/8u))==1);
+                CHECK(!(b&(1u<<(bit%8u))));
+            }
+        }
         for(unsigned i=0;i<4u;++i) {
             CHECK(core->read(session,"/V2-A",(uint64_t)i*sizeof(actual),actual,sizeof(actual))==IFS_FS_OK);
             memset(payload,(int)(i+1u),sizeof(payload));CHECK(!memcmp(actual,payload,sizeof(actual)));
@@ -171,7 +205,14 @@ int main(int argc,char **argv)
         CHECK(core->write(session,"/V2-A",4u*sizeof(payload),payload,sizeof(payload))!=IFS_FS_OK);
         CHECK(core->unmount(session)==IFS_FS_IO_ERROR);
         m.fail_flush=0u;
+        uint32_t dirty_variant=0u;
+        const unsigned recovery_writes=m.writes;
+        CHECK(core->probe(&ro,&dirty_variant)==IFS_FS_OK && dirty_variant==3u &&
+              m.writes==recovery_writes);
         CHECK(core->mount(&h,&session,&info)==IFS_FS_OK);
+        repaired=UINT64_MAX;
+        CHECK(defrag->recover(session,0u,&repaired)==IFS_FS_OK && repaired==1u);
+        CHECK(defrag->recover(session,0u,&repaired)==IFS_FS_OK && repaired==0u);
         CHECK(core->read(session,"/V2-A",4u*sizeof(payload),actual,sizeof(actual))==IFS_FS_OK);
         CHECK(!memcmp(payload,actual,sizeof(actual)));
         CHECK(core->unmount(session)==IFS_FS_OK);

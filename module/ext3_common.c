@@ -38,6 +38,7 @@ typedef struct {
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
     void *reloc_plan;
     uintptr_t reloc_token;
+    uint64_t mount_recovered; /* journal transactions completed under this lease */
 #endif
 } CommonVolume;
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
@@ -207,6 +208,10 @@ static int status(IfsExt2Status s)
     }
 }
 
+#if !defined(IFS_EXT3_READ_ONLY_BUILD)
+static int native_journal_recover(const IfsFsHostRuntimeV2 *h,uint64_t *repaired);
+static int native_dirty_probe(const IfsFsHostRuntimeV2 *h);
+#endif
 /* No format sniffing in a consumer: the real EXT2 engine validates media. */
 static int probe(const IfsFsHostRuntimeV2 *h, uint32_t *variant)
 {
@@ -219,7 +224,16 @@ static int probe(const IfsFsHostRuntimeV2 *h, uint32_t *variant)
     retain_host(&v.host, h);
     io = native_io(&v);
     result = engine()->mount(&v.media, &io, 0);
-    if (result != IFS_EXT2_OK) return status(result);
+    if (result != IFS_EXT2_OK) {
+#if !defined(IFS_EXT3_READ_ONLY_BUILD)
+        /* A recoverable native journal must not make the format disappear
+         * from discovery before the exclusive recovery mount can run. */
+        if(result!=IFS_EXT2_ERROR_IO && native_dirty_probe(h)==IFS_FS_OK) {
+            *variant=3u;return IFS_FS_OK;
+        }
+#endif
+        return status(result);
+    }
     v.media.mounted = 0u;
     *variant = 3u;
     return IFS_FS_OK;
@@ -232,9 +246,6 @@ static int guarded_probe(const IfsFsHostRuntimeV2 *h, uint32_t *variant)
 }
 
 
-#if !defined(IFS_EXT3_READ_ONLY_BUILD)
-static int native_journal_recover(const IfsFsHostRuntimeV2 *h);
-#endif
 static int mount(const IfsFsHostRuntimeV2 *h, void **out,
                  IfsFsVolumeInfoV2 *info)
 {
@@ -251,13 +262,14 @@ static int mount(const IfsFsHostRuntimeV2 *h, void **out,
     if (!(h->capabilities & IFS_FS_HOST_READ_ONLY))
         return IFS_FS_ACCESS;
 #else
+    uint64_t mount_recovered=0u;
     const int writable=!(h->capabilities&IFS_FS_HOST_READ_ONLY);
     for(size_t i=0;i<IFS_EXT_V2_MAX_SESSIONS;++i)
         if(sessions[i].token && (writable ||
            !(sessions[i].volume->host.capabilities&IFS_FS_HOST_READ_ONLY)))
             return IFS_FS_BUSY;
     if(writable) {
-        const int recovered=native_journal_recover(h);
+        const int recovered=native_journal_recover(h,&mount_recovered);
         if(recovered!=IFS_FS_OK)return recovered;
     }
 #endif
@@ -268,6 +280,9 @@ static int mount(const IfsFsHostRuntimeV2 *h, void **out,
     if (!v) return IFS_FS_NO_MEMORY;
     memset(v, 0, sizeof(*v));
     retain_host(&v->host, h);
+#if !defined(IFS_EXT3_READ_ONLY_BUILD)
+    v->mount_recovered=mount_recovered;
+#endif
     io = native_io(v);
     /* The ext-family reader is never allowed to write EXT3 metadata
      * directly. The hosted writer below owns all JBD transactions. */
@@ -689,9 +704,23 @@ static int journal_finish(const IfsFsHostRuntimeV2 *h,uint8_t journal[ALLOC_BS],
     alloc_p32(sb+1024u+96u,alloc_u32(sb+1024u+96u)&~4u);
     rc=jwrite(h,0,sb);return rc==IFS_FS_OK?jflush(h):rc;
 }
-static int native_journal_recover(const IfsFsHostRuntimeV2 *h)
+/* Probe a dirty native profile without mutating it. The full journal
+ * descriptor, commit and replay checks still run only under the exclusive
+ * writable mount; this is identification, not a clean-volume assertion. */
+static int native_dirty_probe(const IfsFsHostRuntimeV2 *h)
 {
-    if(h->capabilities&IFS_FS_HOST_READ_ONLY)return IFS_FS_ACCESS;
+    uint8_t sb[ALLOC_BS],journal[ALLOC_BS];uint32_t total=0;
+    const int rc=journal_profile(h,sb,journal,&total);
+    if(rc!=IFS_FS_OK)return rc;
+    return (alloc_u32(sb+1024u+96u)&4u)?IFS_FS_OK:IFS_FS_CORRUPT;
+}
+static int native_journal_recover(const IfsFsHostRuntimeV2 *h,uint64_t *repaired)
+{
+    if(!repaired)return IFS_FS_INVALID;
+    *repaired=0u;
+    if(!ifs_fs_host_v2_valid(h) || (h->capabilities&IFS_FS_HOST_READ_ONLY) ||
+       !(h->capabilities&IFS_FS_HOST_EXCLUSIVE) ||
+       !(h->capabilities&IFS_FS_HOST_DURABLE))return IFS_FS_ACCESS;
     uint8_t sb[ALLOC_BS],journal[ALLOC_BS],descriptor[ALLOC_BS],commit[ALLOC_BS];
     uint32_t total=0;
     int rc=journal_profile(h,sb,journal,&total);
@@ -699,7 +728,11 @@ static int native_journal_recover(const IfsFsHostRuntimeV2 *h)
     const int dirty=(alloc_u32(sb+1024u+96u)&4u)!=0;
     const uint32_t start=jbe32(journal+28),sequence=jbe32(journal+24);
     if(!dirty)return start?IFS_FS_CORRUPT:IFS_FS_OK;
-    if(!start)return journal_finish(h,journal,sequence);
+    if(!start) {
+        rc=journal_finish(h,journal,sequence);
+        if(rc==IFS_FS_OK)*repaired=1u;
+        return rc;
+    }
     rc=jread(h,JBD_START+1u,descriptor);if(rc!=IFS_FS_OK)return rc;
     if(jbe32(descriptor)!=JBD_MAGIC || jbe32(descriptor+4)!=1u ||
        jbe32(descriptor+8)!=sequence)return IFS_FS_CORRUPT;
@@ -725,7 +758,11 @@ static int native_journal_recover(const IfsFsHostRuntimeV2 *h)
     /* A transaction without its durable commit was never checkpointed.
      * Discard only this structurally valid, uncommitted native log. */
     if(jbe32(commit)!=JBD_MAGIC || jbe32(commit+4)!=2u ||
-       jbe32(commit+8)!=sequence)return journal_finish(h,journal,sequence);
+       jbe32(commit+8)!=sequence) {
+        rc=journal_finish(h,journal,sequence);
+        if(rc==IFS_FS_OK)*repaired=1u;
+        return rc;
+    }
     uint8_t *data=h->allocate(h->context,(size_t)count*ALLOC_BS);
     if(!data)return IFS_FS_NO_MEMORY;
     for(uint32_t i=0;i<count;++i) {
@@ -751,6 +788,7 @@ static int native_journal_recover(const IfsFsHostRuntimeV2 *h)
     }
     rc=jflush(h);
     if(rc==IFS_FS_OK)rc=journal_finish(h,journal,sequence);
+    if(rc==IFS_FS_OK)*repaired=1u;
 done:
     h->release(h->context,data);return rc;
 }
@@ -1435,6 +1473,30 @@ done:
     unscratch(v,work);v->host.release(v->host.context,used);
     reloc_free(v,now);return rc;
 }
+/* Mount owns replay before the reader observes metadata. The explicit
+ * V2 recovery operation reports the actual transaction completed under
+ * this lease, once, and confirms that no dirty journal remains. A failed
+ * in-session mutation requires a fresh exclusive mount to discard stale
+ * caches before replay; never recover under a live relocation plan. */
+static int guarded_reloc_recover(void *volume,uint32_t flags,uint64_t *repaired)
+{
+    if(repaired)*repaired=0u;
+    if(!v2_enter_operation())return IFS_FS_BUSY;
+    CommonVolume *v=session_lookup(volume);
+    int rc=IFS_FS_INVALID;
+    if(!repaired || flags || !valid(v))goto done;
+    if(v->host.capabilities&IFS_FS_HOST_READ_ONLY){rc=IFS_FS_ACCESS;goto done;}
+    if(v->reloc_plan || v->mutation_fault){rc=IFS_FS_BUSY;goto done;}
+    uint8_t sb[ALLOC_BS],journal[ALLOC_BS];uint32_t total=0;
+    rc=journal_profile(&v->host,sb,journal,&total);
+    if(rc!=IFS_FS_OK)goto done;
+    if(jbe32(journal+28u) || (alloc_u32(sb+1024u+96u)&4u)){
+        rc=IFS_FS_CORRUPT;goto done;
+    }
+    *repaired=v->mount_recovered;v->mount_recovered=0u;
+done:
+    return v2_leave_operation(rc);
+}
 static int guarded_reloc_plan(void *v,const char *path,uint32_t policy,void **out)
 {
     if(out)*out=NULL;
@@ -1546,13 +1608,14 @@ static const IfsFsDefragOpsV2 defrag_group = {
     .header = { IFS_FS_GROUP_ABI_V2, sizeof(IfsFsDefragOpsV2),
         IFS_FS_GROUP_DEFRAG, 0u, IFS_FS_DEFRAG_MAP
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
-        | IFS_FS_DEFRAG_PLAN | IFS_FS_DEFRAG_EXECUTE | IFS_FS_DEFRAG_VERIFY
+        | IFS_FS_DEFRAG_PLAN | IFS_FS_DEFRAG_EXECUTE | IFS_FS_DEFRAG_VERIFY | IFS_FS_DEFRAG_RECOVER
 #endif
     },
     .map = guarded_extent_map
 #if !defined(IFS_EXT3_READ_ONLY_BUILD)
     , .plan=guarded_reloc_plan, .execute=guarded_reloc_execute,
-    .verify=guarded_reloc_verify, .release_plan=guarded_reloc_release
+    .verify=guarded_reloc_verify, .recover=guarded_reloc_recover,
+    .release_plan=guarded_reloc_release
 #endif
 };
 
