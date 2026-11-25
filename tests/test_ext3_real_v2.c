@@ -103,7 +103,7 @@ int main(int argc,char **argv)
         ENSURE(core->mount(&writable,&denied,&denied_info)!=IFS_FS_OK &&
                denied==NULL);
         uint32_t variant=123u;
-        d[i].fail_on_read=1u;
+        d[i].reads=0u;d[i].fail_on_read=1u;
         ENSURE(core->probe(&h[i],&variant)==IFS_FS_IO_ERROR && variant==0u);
         d[i].fail_on_read=0u;d[i].reads=0u;
         ENSURE(core->probe(&h[i],&variant)==IFS_FS_OK && variant==3u);
