@@ -966,28 +966,62 @@ static int alloc_create(void *volume,const char *path,uint32_t type)
 {
     CommonVolume *v=session_lookup(volume);
     int rc=alloc_profile(v);if(rc!=IFS_FS_OK)return rc;
-    if(type!=IFS_FS_ENTRY_FILE || !path || path[0]!='/' || !path[1] ||
-       strchr(path+1,'/') || !strcmp(path,"/.") || !strcmp(path,"/.."))
-        return IFS_FS_UNSUPPORTED;
-    size_t len=strlen(path+1);if(len>255u)return IFS_FS_INVALID;
+    if(type!=IFS_FS_ENTRY_FILE && type!=IFS_FS_ENTRY_DIRECTORY)return IFS_FS_UNSUPPORTED;
+    if(!path || path[0]!='/' || !path[1])return IFS_FS_INVALID;
+    const char *leaf=strrchr(path,'/')+1;
+    const size_t len=strlen(leaf);
+    if(!len || len>255u || !strcmp(leaf,".") || !strcmp(leaf,".."))
+        return IFS_FS_INVALID;
+    char parent_path[4096];
+    const size_t parent_len=(size_t)(leaf-path-1);
+    if(parent_len>=sizeof(parent_path))return IFS_FS_INVALID;
+    if(!parent_len){parent_path[0]='/';parent_path[1]=0;}
+    else {memcpy(parent_path,path,parent_len);parent_path[parent_len]=0;}
     void *work=scratch(v);if(!work)return IFS_FS_NO_MEMORY;
     IfsExt2Inode found,root;
     rc=resolve(v,path,&found,NULL,NULL,work);
     if(rc==IFS_FS_OK){rc=IFS_FS_EXISTS;goto done;}
     if(rc!=IFS_FS_NOT_FOUND)goto done;
-    rc=status(engine()->root(&v->media,&root,work,ALLOC_BS));
+    rc=resolve(v,parent_path,&root,NULL,NULL,work);
     if(rc!=IFS_FS_OK)goto done;
+    if(ifs_ext2_inode_type(&root)!=IFS_EXT2_NODE_DIRECTORY){
+        rc=IFS_FS_NOT_FOUND;goto done;
+    }
     if(root.flags || !root.size || root.size%ALLOC_BS || root.size>UINT32_MAX) {
         rc=IFS_FS_UNSUPPORTED;goto done;
     }
     AllocTxn t={.v=v,.hint=v->allocation_hint};
     AllocPatch *rp,*fp,*dp=NULL;uint8_t *rr,*fr;uint32_t ino;
-    rc=alloc_inode(&t,2u,&rp,&rr);if(rc!=IFS_FS_OK)goto release;
+    rc=alloc_inode(&t,root.number,&rp,&rr);if(rc!=IFS_FS_OK)goto release;
     rc=alloc_new(&t,1,&ino);if(rc!=IFS_FS_OK)goto release;
     rc=alloc_inode(&t,ino,&fp,&fr);if(rc!=IFS_FS_OK)goto release;
-    memset(fr,0,256u);alloc_p16(fr,0100644u);alloc_p16(fr+26,1u);fp->dirty=1;
+    memset(fr,0,256u);alloc_p16(fr,type==IFS_FS_ENTRY_DIRECTORY?0040755u:0100644u);
+    alloc_p16(fr+26,type==IFS_FS_ENTRY_DIRECTORY?2u:1u);fp->dirty=1;
+    /* Directory links, initial dot records, allocation and the parent
+     * entry are one native JBD transaction. No intermediate namespace is
+     * made durable, and each descriptor's used-directory count is exact. */
+    if(type==IFS_FS_ENTRY_DIRECTORY) {
+        const uint32_t links=alloc_u16(rr+26);
+        if(links<2u || links==UINT16_MAX){rc=IFS_FS_NO_SPACE;goto release;}
+        AllocPatch *gd,*data;uint8_t *desc;uint32_t span;
+        rc=alloc_group(&t,(ino-1u)/1024u,&gd,&desc,&span);
+        if(rc!=IFS_FS_OK)goto release;
+        const uint32_t directories=alloc_u16(desc+16u);
+        if(directories>=1024u){rc=IFS_FS_CORRUPT;goto release;}
+        alloc_p16(desc+16u,directories+1u);gd->dirty=1;
+        alloc_p16(rr+26,links+1u);rp->dirty=1;
+        rc=alloc_data(&t,fp,fr,0u,&data);if(rc!=IFS_FS_OK)goto release;
+        alloc_p32(fr+4u,ALLOC_BS);fp->dirty=1;
+        memset(data->after,0,ALLOC_BS);
+        alloc_p32(data->after,ino);alloc_p16(data->after+4u,12u);
+        data->after[6]=1u;data->after[7]=2u;data->after[8]='.';
+        alloc_p32(data->after+12u,root.number);
+        alloc_p16(data->after+16u,ALLOC_BS-12u);
+        data->after[18]=2u;data->after[19]=2u;
+        data->after[20]='.';data->after[21]='.';data->dirty=1;
+    }
     uint32_t at=0,rec=0;
-    /* A root-directory insertion reuses a validated record's slack.
+    /* A parent-directory insertion reuses a validated record's slack.
      * If none fits, append one native directory block. */
     for(uint32_t logical=0;logical<root.size/ALLOC_BS && !rec;++logical) {
         uint64_t physical;int hole;
@@ -1019,8 +1053,9 @@ static int alloc_create(void *volume,const char *path,uint32_t type)
         at=0;rec=ALLOC_BS;
     }
     uint8_t *d=dp->after+at;memset(d,0,rec);
-    alloc_p32(d,ino);alloc_p16(d+4,rec);d[6]=(uint8_t)len;d[7]=1u;
-    memcpy(d+8,path+1,len);dp->dirty=1;
+    alloc_p32(d,ino);alloc_p16(d+4,rec);d[6]=(uint8_t)len;
+    d[7]=type==IFS_FS_ENTRY_DIRECTORY?2u:1u;
+    memcpy(d+8,leaf,len);dp->dirty=1;
     rc=alloc_commit(&t);
 release:
     alloc_release(&t);
@@ -1075,11 +1110,11 @@ static int guarded_write_file(void *v,const char *path,uint64_t pos,
     return v2_leave_operation(mounted && mounted->reloc_plan?IFS_FS_BUSY:alloc_append(v,path,pos,data,length));
 }
 
-/* Native flat-volume relocation. The existing journal transaction owns data,
+/* Native volume relocation. The existing journal transaction owns data,
  * allocation bits and indirect pointers together. No temporary external file,
  * kernel mount or raw-cluster relocation by the consumer is involved.
  * Preflight conservatively refuses foreign geometry, sparse files, aliases,
- * subdirectories, unaccounted allocated blocks, or insufficient free space. */
+ * unaccounted allocated blocks, or insufficient free space. */
 typedef struct {
     uint32_t inode,blocks,target,reserve;
     uint64_t size;
@@ -1091,11 +1126,14 @@ typedef struct {
     uint64_t free_blocks;
     int executed;
 } RelocPlan;
+typedef struct {uint32_t inode,parent;} RelocDirectory;
 typedef struct {
     CommonVolume *v;
     RelocPlan *plan;
     uint8_t *used,*owned,*inodes;
     void *scratch;
+    RelocDirectory *directories;
+    uint32_t queued,current,parent,children,dot,dotdot;
     int rc;
 } RelocScan;
 static uintptr_t reloc_generation;
@@ -1196,26 +1234,39 @@ static int reloc_dirent(void *opaque,ifs_ext2_u32 number,IfsExt2NodeType type,
                         const char *name,ifs_ext2_u8 bytes)
 {
     RelocScan *s=opaque;
-    if((bytes==1u && name[0]=='.') ||
-       (bytes==2u && name[0]=='.' && name[1]=='.')) {
-        if(number!=2u){s->rc=IFS_FS_CORRUPT;return 1;}
+    if(bytes==1u && name[0]=='.') {
+        if(number!=s->current || s->dot++){s->rc=IFS_FS_CORRUPT;return 1;}
         return 0;
     }
-    if(number<11u || s->plan->count>=s->plan->capacity) {
+    if(bytes==2u && name[0]=='.' && name[1]=='.') {
+        if(number!=s->parent || s->dotdot++){s->rc=IFS_FS_CORRUPT;return 1;}
+        return 0;
+    }
+    if(!bytes || number<11u || s->plan->count>=s->plan->capacity) {
         s->rc=IFS_FS_CORRUPT;return 1;
     }
     IfsExt2Inode inode;
     s->rc=status(ifs_ext2_read_inode(&s->v->media.fs,number,&inode,
                                    s->scratch,ALLOC_BS));
     if(s->rc!=IFS_FS_OK)return 1;
-    if((type!=IFS_EXT2_NODE_UNKNOWN && type!=IFS_EXT2_NODE_REGULAR) ||
-       ifs_ext2_inode_type(&inode)!=IFS_EXT2_NODE_REGULAR ||
-       inode.links_count!=1u) {
+    const IfsExt2NodeType actual=ifs_ext2_inode_type(&inode);
+    if((type!=IFS_EXT2_NODE_UNKNOWN && type!=actual) ||
+       (actual!=IFS_EXT2_NODE_REGULAR && actual!=IFS_EXT2_NODE_DIRECTORY) ||
+       (actual==IFS_EXT2_NODE_REGULAR && inode.links_count!=1u)) {
         s->rc=IFS_FS_UNSUPPORTED;return 1;
     }
+    /* Claim the full directory chain just like a file; directory bytes
+     * are hashed and moved without changing the inode or its references.
+     * The root itself remains pinned by the native journal geometry. */
     s->rc=reloc_inode(s,&inode,&s->plan->files[s->plan->count]);
     if(s->rc!=IFS_FS_OK)return 1;
-    ++s->plan->count;return 0;
+    ++s->plan->count;
+    if(actual==IFS_EXT2_NODE_DIRECTORY) {
+        if(s->queued>=s->plan->capacity){s->rc=IFS_FS_CORRUPT;return 1;}
+        s->directories[s->queued++]=(RelocDirectory){number,s->current};
+        ++s->children;
+    }
+    return 0;
 }
 /* Reconstruct the complete native allocation ownership, checking free
  * counters and reserved blocks before any relocation is permitted. */
@@ -1239,8 +1290,9 @@ static int reloc_snapshot(CommonVolume *v,RelocPlan **out,uint8_t **bitmap)
     uint8_t *used=v->host.allocate(v->host.context,nb);
     uint8_t *owned=v->host.allocate(v->host.context,nb);
     uint8_t *inodes=v->host.allocate(v->host.context,ib);
+    RelocDirectory *dirs=v->host.allocate(v->host.context,(size_t)cap*sizeof(*dirs));
     void *work=scratch(v),*lookup=scratch(v);
-    if(!p->files || !used || !owned || !inodes || !work || !lookup) {
+    if(!p->files || !used || !owned || !inodes || !dirs || !work || !lookup) {
         rc=IFS_FS_NO_MEMORY;goto done;
     }
     memset(used,0,nb);memset(owned,0,nb);memset(inodes,0,ib);
@@ -1274,21 +1326,35 @@ static int reloc_snapshot(CommonVolume *v,RelocPlan **out,uint8_t **bitmap)
         rc=IFS_FS_CORRUPT;goto done;
     }
     RelocScan scan={.v=v,.plan=p,.used=used,.owned=owned,
-                    .inodes=inodes,.scratch=lookup,.rc=IFS_FS_OK};
+                    .inodes=inodes,.scratch=lookup,.directories=dirs,
+                    .queued=1u,.rc=IFS_FS_OK};
     IfsExt2Inode root;
     rc=status(engine()->root(&v->media,&root,work,ALLOC_BS));
     if(rc!=IFS_FS_OK)goto done;
-    if(root.number!=2u || root.links_count!=2u ||
-       ifs_ext2_inode_type(&root)!=IFS_EXT2_NODE_DIRECTORY) {
-        rc=IFS_FS_UNSUPPORTED;goto done;
+    if(root.number!=2u || ifs_ext2_inode_type(&root)!=IFS_EXT2_NODE_DIRECTORY) {
+        rc=IFS_FS_CORRUPT;goto done;
     }
     rc=reloc_inode(&scan,&root,NULL);if(rc!=IFS_FS_OK)goto done;
-    IfsExt2Status st=ifs_ext2_iterate_directory(&v->media.fs,&root,
-                         reloc_dirent,&scan,work,ALLOC_BS);
-    if(scan.rc!=IFS_FS_OK){rc=scan.rc;goto done;}
-    if(st!=IFS_EXT2_OK){rc=status(st);goto done;}
+    dirs[0]=(RelocDirectory){2u,2u};
+    /* Iterative traversal bounds memory and cannot recurse through a
+     * corrupt directory graph. Inode ownership rejects aliases/cycles. */
+    uint32_t group_dirs[128]={0};
+    for(uint32_t head=0u;head<scan.queued;++head) {
+        IfsExt2Inode dir;
+        rc=status(ifs_ext2_read_inode(&v->media.fs,dirs[head].inode,&dir,lookup,ALLOC_BS));
+        if(rc!=IFS_FS_OK)goto done;
+        scan.current=dir.number;scan.parent=dirs[head].parent;
+        scan.dot=scan.dotdot=scan.children=0u;
+        IfsExt2Status st=ifs_ext2_iterate_directory(&v->media.fs,&dir,
+                             reloc_dirent,&scan,work,ALLOC_BS);
+        if(scan.rc!=IFS_FS_OK){rc=scan.rc;goto done;}
+        if(st!=IFS_EXT2_OK){rc=status(st);goto done;}
+        if(scan.dot!=1u || scan.dotdot!=1u ||
+           dir.links_count!=scan.children+2u){rc=IFS_FS_CORRUPT;goto done;}
+        ++group_dirs[(dir.number-1u)/1024u];
+    }
     /* Reserved inode numbers are fixed in the native format; any other
-     * allocated inode must have been seen exactly once in the root. */
+     * allocated inode must have been seen exactly once in the directory tree. */
     uint64_t free_inodes=0;
     for(uint32_t g=0;g<groups;++g) {
         rc=jread(&v->host,g*32768u+3u,map);if(rc!=IFS_FS_OK)goto done;
@@ -1301,7 +1367,10 @@ static int reloc_snapshot(CommonVolume *v,RelocPlan **out,uint8_t **bitmap)
             }
             if(!bit)++count;
         }
-        if(count!=alloc_u16(gdt+g*32u+14u)){rc=IFS_FS_CORRUPT;goto done;}
+        if(count!=alloc_u16(gdt+g*32u+14u) ||
+           group_dirs[g]!=alloc_u16(gdt+g*32u+16u)){
+            rc=IFS_FS_CORRUPT;goto done;
+        }
         free_inodes+=count;
     }
     if(free_inodes!=alloc_u32(sb+1024u+16u) || memcmp(used,owned,nb)) {
@@ -1313,6 +1382,7 @@ done:
     if(used)v->host.release(v->host.context,used);
     if(owned)v->host.release(v->host.context,owned);
     if(inodes)v->host.release(v->host.context,inodes);
+    if(dirs)v->host.release(v->host.context,dirs);
     reloc_free(v,p);return rc;
 }
 static int reloc_plan(void *volume,const char *path,uint32_t policy,void **out)
@@ -1549,7 +1619,8 @@ static int extent_map(void *volume, const char *path, uint64_t first_extent,
     if(!work)return IFS_FS_NO_MEMORY;
     int rc=resolve(v,path,&inode,NULL,NULL,work);
     if(rc!=IFS_FS_OK)goto done;
-    if(ifs_ext2_inode_type(&inode)!=IFS_EXT2_NODE_REGULAR) {
+    const IfsExt2NodeType type=ifs_ext2_inode_type(&inode);
+    if(type!=IFS_EXT2_NODE_REGULAR && type!=IFS_EXT2_NODE_DIRECTORY) {
         rc=IFS_FS_UNSUPPORTED;goto done;
     }
     const uint32_t unit=v->media.fs.block_size;
@@ -1567,6 +1638,7 @@ static int extent_map(void *volume, const char *path, uint64_t first_extent,
             (ifs_ext2_u32)logical,&physical,&hole,work,unit);
         if(st!=IFS_EXT2_OK){rc=status(st);goto done;}
         if(hole) {
+            if(type==IFS_EXT2_NODE_DIRECTORY){rc=IFS_FS_CORRUPT;goto done;}
             if(emit_extent(&run,first_extent,&index,extents,capacity,&count))
                 goto complete;
             run=(IfsFsExtentV2){0};continue;

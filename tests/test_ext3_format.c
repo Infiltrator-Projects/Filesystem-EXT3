@@ -215,6 +215,25 @@ int main(int argc,char **argv)
         CHECK(defrag->recover(session,0u,&repaired)==IFS_FS_OK && repaired==0u);
         CHECK(core->read(session,"/V2-A",4u*sizeof(payload),actual,sizeof(actual))==IFS_FS_OK);
         CHECK(!memcmp(payload,actual,sizeof(actual)));
+        /* Nested namespace creation and relocation share the journal
+         * writer; directory chains and content must survive remount. */
+        CHECK(core->create(session,"/TREE",IFS_FS_ENTRY_DIRECTORY)==IFS_FS_OK);
+        CHECK(core->create(session,"/TREE/CHILD",IFS_FS_ENTRY_DIRECTORY)==IFS_FS_OK);
+        CHECK(core->create(session,"/TREE/CHILD/EDGE",IFS_FS_ENTRY_FILE)==IFS_FS_OK);
+        CHECK(core->write(session,"/TREE/CHILD/EDGE",0u,"Z",1u)==IFS_FS_OK);
+        CHECK(defrag->map(session,"/TREE/CHILD/EDGE",0u,extents,4u,&written)==IFS_FS_OK &&
+              written==1u && extents[0].length==1u);
+        CHECK(defrag->map(session,"/TREE/CHILD",0u,extents,4u,&written)==IFS_FS_OK &&
+              written==1u && extents[0].length==4096u);
+        CHECK(defrag->plan(session,"/",10u,&plan)==IFS_FS_OK && plan);
+        CHECK(defrag->execute(session,plan,&moved)==IFS_FS_OK);
+        CHECK(defrag->verify(session,plan)==IFS_FS_OK);
+        defrag->release_plan(session,plan);
+        CHECK(core->unmount(session)==IFS_FS_OK);
+        CHECK(core->mount(&ro,&session,&info)==IFS_FS_OK);
+        CHECK(core->read(session,"/TREE/CHILD/EDGE",0u,actual,1u)==IFS_FS_OK && actual[0]=='Z');
+        CHECK(core->stat(session,"/TREE/CHILD",&entry)==IFS_FS_OK &&
+              entry.type==IFS_FS_ENTRY_DIRECTORY);
         CHECK(core->unmount(session)==IFS_FS_OK);
     } else {
         CHECK(core->mount(&h,&session,&info)==IFS_FS_OK && session);
