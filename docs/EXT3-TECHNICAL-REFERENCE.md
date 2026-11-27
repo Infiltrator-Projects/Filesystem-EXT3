@@ -4,6 +4,8 @@
 
 Ext3 added journalling to ext2 while retaining its core on-disk inode and block-group format. Stephen Tweedie's work appeared in the late 1990s and entered mainline Linux 2.4. The reference here is Linux v2.6.32, when the original JBD layer was still present, not the later JBD2 extension. A compatible ordinary filesystem feature does not mean that outstanding journal recovery can be ignored. Distinguish the underlying ext metadata, the native circular journal and any independent provider recovery mechanism.
 
+Ext3's ability to add a journal to an existing ext2 volume without copying every file was central to adoption. Journal I/O and indirect mapping remained costs; ext4 later addressed these limitations. A journal is neither a backup nor a complete guarantee of user-data durability.
+
 ## Superblock geometry and field inventory
 
 All ordinary ext2/ext3 metadata integers are little-endian. The primary superblock is 1024 bytes long at partition-relative byte 1024, regardless of block size. Relative 32-bit fields: inode count 0, block count 4, reserved blocks 8, free blocks 12, free inodes 16, first data block 20, log block size 24, log fragment size 28, blocks per group 32, fragments per group 36, inodes per group 40, mount time 44, write time 48. Mount counts at 52/54 and magic 0xEF53 at 56 are 16-bit. State 58, errors policy 60, minor revision 62, last check 64, check interval 68, creator OS 72, revision 76, reserve UID/GID 80/82. Block bytes B=1024 shifted left by the validated log block size. First data block is ordinarily 1 for 1024-byte blocks and 0 for larger blocks. Check total geometry against the supplied device.
@@ -60,8 +62,14 @@ A revoke block has type 5, common header and a 32-bit used-byte count at 12; 32-
 
 Journal mode logs ordinary data as well as metadata; ordered mode writes relevant data before committing metadata that exposes it; writeback mode does not provide that same data ordering. Metadata integrity is not a guarantee of the latest user bytes. Checkpointing copies committed metadata to home locations and advances the journal tail only after durable publication. Do not reuse the log region while it still carries required recovery records. The filesystem's orphan list supports interrupted truncate/unlink; its inode-chain semantics must be applied with proper ownership checks after journal recovery. An independent defragmenter must update mappings, allocation and affected journal metadata coherently; an application log alone does not establish native JBD compatibility.
 
+## Implementation and qualification boundary
+
+Historical source 70efd2b1529b exposed hosted read/write and format. Its native formatter requires unique volume identity before destructive writes. Journal replay, crash recovery, firmware and kernel root mounting remain independent qualification questions.
+
+Common V2 is the independent provider interface: https://github.com/Infiltrator-Projects/Libraries/blob/main/docs/FILESYSTEM_COMMON_ABI_V2.md . Negotiate real operation masks and media profiles. Use bounded host I/O, exclusive unmounted ownership and durable flush for mutation; distinguish unsupported, corrupt, I/O and stale-handle results. Test Media and Defragmenter use the same engine. Hosted, freestanding, BOOT, kernel, recovery and package qualification are independent. Current capability and release status belongs to the repository README and exact-source qualification records; historical evidence is not a current status claim.
+
+Historical source or test reference: https://github.com/Infiltrator-Projects/Filesystem-EXT3/actions/runs/45520241461 .
+
 ## References and validation
 
-Pinned headers: https://github.com/torvalds/linux/blob/v2.6.32/include/linux/ext3_fs.h and https://github.com/torvalds/linux/blob/v2.6.32/include/linux/jbd.h . Native algorithms in fs/ext3 and fs/jbd at that revision, including recovery.c, revoke.c, commit.c and checkpoint.c. Validate using independently formatted ext3 media, internal/external journals, multiple committed and uncommitted transactions, wrapped sequence ranges, escaped payloads, revocation, aborted logs, orphaned inodes and all data modes. Verify recovered namespace and payload against native tools on copies. Exact replay and crash testing remain required for independent production writes. Earlier documentation is retained below as historical evidence, not current qualification.
-
-The PDF preserves the earlier manual as a historical appendix.
+Pinned headers: https://github.com/torvalds/linux/blob/v2.6.32/include/linux/ext3_fs.h and https://github.com/torvalds/linux/blob/v2.6.32/include/linux/jbd.h . Native algorithms in fs/ext3 and fs/jbd at that revision, including recovery.c, revoke.c, commit.c and checkpoint.c. Validate using independently formatted ext3 media, internal/external journals, multiple committed and uncommitted transactions, wrapped sequence ranges, escaped payloads, revocation, aborted logs, orphaned inodes and all data modes. Verify recovered namespace and payload against native tools on copies. Exact replay and crash testing remain required for independent production writes.
