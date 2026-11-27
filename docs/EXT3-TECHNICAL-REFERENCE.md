@@ -2,9 +2,9 @@
 
 ## Original format and scope
 
-Ext3 added journalling to ext2 while retaining its core on-disk inode and block-group format. Stephen Tweedie's work appeared in the late 1990s and entered mainline Linux 2.4. The reference here is Linux v2.6.32, when the original JBD layer was still present, not the later JBD2 extension. A compatible ordinary filesystem feature does not mean that outstanding journal recovery can be ignored. Distinguish the underlying ext metadata, the native circular journal and any independent provider recovery mechanism.
+Stephen Tweedie's ext3 work appeared in the late 1990s and entered mainline Linux 2.4. It added journalling to ext2 while retaining its inode and block-group layout, enabling journal addition to an existing ext2 volume without copying every file. Journal I/O and indirect mapping remained costs; ext4 later addressed these limitations.
 
-Ext3's ability to add a journal to an existing ext2 volume without copying every file was central to adoption. Journal I/O and indirect mapping remained costs; ext4 later addressed these limitations. A journal is neither a backup nor a complete guarantee of user-data durability.
+This reference uses Linux v2.6.32 and the original JBD layer, not later JBD2 extensions. Distinguish ordinary ext metadata, the native circular journal and independent provider recovery. A journal is neither a backup nor a complete guarantee of user-data durability; compatible ordinary features do not justify ignoring pending recovery.
 
 ## Superblock geometry and field inventory
 

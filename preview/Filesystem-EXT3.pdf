@@ -48,23 +48,22 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 9 0 R >>
 endobj
 9 0 obj
-<< /Length 1678 >>
+<< /Length 1510 >>
 stream
 0.06 0.15 0.23 rg 0 768 595 74 re f
 1 1 1 rg BT /F2 10 Tf 43 811 Td (INFILTRATOR / FILESYSTEM ENGINEERING) Tj ET
 BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F2 15 Tf 43 736 Td (1. Original format and scope) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 706 Td (Ext3 added journalling to ext2 while retaining its core on-disk inode and) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 692 Td (block-group format. Stephen Tweedie's work appeared in the late 1990s and entered) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 678 Td (mainline Linux 2.4. The reference here is Linux v2.6.32, when the original JBD) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 664 Td (layer was still present, not the later JBD2 extension. A compatible ordinary) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 650 Td (filesystem feature does not mean that outstanding journal recovery can be ignored.) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 636 Td (Distinguish the underlying ext metadata, the native circular journal and any) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 622 Td (independent provider recovery mechanism.) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 598 Td (Ext3's ability to add a journal to an existing ext2 volume without copying every) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 584 Td (file was central to adoption. Journal I/O and indirect mapping remained costs; ext4) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 570 Td (later addressed these limitations. A journal is neither a backup nor a complete) Tj ET
-0.08 0.14 0.20 rg BT /F3 10 Tf 43 556 Td (guarantee of user-data durability.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 706 Td (Stephen Tweedie's ext3 work appeared in the late 1990s and entered mainline) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 692 Td (Linux 2.4. It added journalling to ext2 while retaining its inode and) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 678 Td (block-group layout, enabling journal addition to an existing ext2 volume) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 664 Td (without copying every file. Journal I/O and indirect mapping remained costs;) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 650 Td (ext4 later addressed these limitations.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 626 Td (This reference uses Linux v2.6.32 and the original JBD layer, not later JBD2) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 612 Td (extensions. Distinguish ordinary ext metadata, the native circular journal and) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 598 Td (independent provider recovery. A journal is neither a backup nor a complete) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 584 Td (guarantee of user-data durability; compatible ordinary features do not justify) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 570 Td (ignoring pending recovery.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 2) Tj ET
 endstream
 endobj
@@ -456,40 +455,40 @@ xref
 0000000593 00000 n 
 0000002446 00000 n 
 0000002592 00000 n 
-0000004321 00000 n 
-0000004469 00000 n 
-0000006178 00000 n 
-0000006326 00000 n 
-0000008125 00000 n 
-0000008273 00000 n 
-0000010094 00000 n 
-0000010242 00000 n 
-0000011791 00000 n 
-0000011939 00000 n 
-0000013713 00000 n 
-0000013861 00000 n 
-0000015543 00000 n 
-0000015691 00000 n 
-0000017471 00000 n 
-0000017619 00000 n 
-0000019325 00000 n 
-0000019473 00000 n 
-0000021156 00000 n 
-0000021304 00000 n 
-0000022960 00000 n 
-0000023108 00000 n 
-0000024755 00000 n 
-0000024903 00000 n 
-0000026564 00000 n 
-0000026712 00000 n 
-0000028392 00000 n 
-0000028540 00000 n 
-0000030223 00000 n 
-0000030371 00000 n 
-0000032544 00000 n 
-0000032692 00000 n 
+0000004153 00000 n 
+0000004301 00000 n 
+0000006010 00000 n 
+0000006158 00000 n 
+0000007957 00000 n 
+0000008105 00000 n 
+0000009926 00000 n 
+0000010074 00000 n 
+0000011623 00000 n 
+0000011771 00000 n 
+0000013545 00000 n 
+0000013693 00000 n 
+0000015375 00000 n 
+0000015523 00000 n 
+0000017303 00000 n 
+0000017451 00000 n 
+0000019157 00000 n 
+0000019305 00000 n 
+0000020988 00000 n 
+0000021136 00000 n 
+0000022792 00000 n 
+0000022940 00000 n 
+0000024587 00000 n 
+0000024735 00000 n 
+0000026396 00000 n 
+0000026544 00000 n 
+0000028224 00000 n 
+0000028372 00000 n 
+0000030055 00000 n 
+0000030203 00000 n 
+0000032376 00000 n 
+0000032524 00000 n 
 trailer
 << /Size 42 /Root 1 0 R >>
 startxref
-34245
+34077
 %%EOF
