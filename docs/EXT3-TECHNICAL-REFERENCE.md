@@ -34,6 +34,8 @@ Let N=B/4. Inode pointers 0..11 map logical blocks 0..11; pointer 12 addresses N
 
 Old directory records contain inode 0 (32 bits), record length 4 (16 bits), 16-bit name length 6 and name at 8. With FILETYPE, name length is byte 6 and file type byte 7. In either case minimum record length is align_up(8+name_length,4). Inode zero marks an unused entry; never advance by zero or cross a block boundary. Filetype values 1..7 denote regular, directory, character, block, FIFO, socket and symlink. An indexed directory uses HTree root and interior records hidden behind directory-compatible layouts; use the hash version and seed, validate sorted hash intervals and collisions, and still compare exact names in leaf directory entries. Preserve dot/dot-dot and link counts. A fast symlink can store up to 60 target bytes in i_block; determine eligibility from native allocation/type rules, not length alone.
 
+Historical EXT directory hash families include legacy, half-MD4 and TEA, with signed and unsigned byte variants. The recorded hash version selects the algorithm; using a host-language default signedness can route a lookup to the wrong leaf.
+
 ## Extended attributes and special objects
 
 An external EA block uses magic 0xEA020000, reference count, block count and hash in its header, followed by variable entries. Each entry has one-byte name length and namespace index, 16-bit value offset, 32-bit value-block field, value length and hash. Entries and values have four-byte alignment; verify separate bounds and shared-block reference counts. Do not treat an external EA block as ordinary file payload or reclaim it while shared. On supported larger inode variants the inode tail may contain inline extended attributes; validate the extra-inode-size field before decoding that area. Preserve ACL namespaces and unknown attributes. Device nodes encode device identity in i_block rather than data pointers. Distinguish special files, sparse files and symlinks when reconstructing ownership.
@@ -41,6 +43,8 @@ An external EA block uses magic 0xEA020000, reference count, block count and has
 ## Structural checking and formatting
 
 Reconstruct all metadata reservations, allocated inode identities, direct and indirect trees, EA ownership, namespace reachability and hard-link counts. Check duplicate ownership against native sharing rules, compare bitmaps and counters, and distinguish damaged references from genuinely free space. A formatter must establish valid superblock copies, descriptors, bitmaps, reserved inode records, root inode and root directory, and all required features before publishing a usable state. An independent formatter oracle can create fixtures; it must not be a production fallback. Test block sizes 1,2,4 KiB, different inode sizes, sparse-super groups, partial final groups, direct/indirect transitions, sparse subtrees, large file sizes, invalid record lengths and metadata overlap.
+
+Online growth can extend the final group or add groups. Validate the new descriptor and bitmap reservations and their addressability before publishing changed superblock geometry; reconcile local and global free counts with the newly admitted space.
 
 ## Journal discovery and feature gates
 
@@ -61,6 +65,8 @@ A revoke block has type 5, common header and a 32-bit used-byte count at 12; 32-
 ## Data modes, commit and checkpoint
 
 Journal mode logs ordinary data as well as metadata; ordered mode writes relevant data before committing metadata that exposes it; writeback mode does not provide that same data ordering. Metadata integrity is not a guarantee of the latest user bytes. Checkpointing copies committed metadata to home locations and advances the journal tail only after durable publication. Do not reuse the log region while it still carries required recovery records. The filesystem's orphan list supports interrupted truncate/unlink; its inode-chain semantics must be applied with proper ownership checks after journal recovery. An independent defragmenter must update mappings, allocation and affected journal metadata coherently; an application log alone does not establish native JBD compatibility.
+
+The superblock's last-orphan field names the first inode of the historical chain. During recovery, each inode's deletion-time field carries the next inode number. Validate range, ownership, termination and absence of cycles before following it. Cleanup must finish interrupted unlink or truncation without leaking or freeing still-referenced blocks.
 
 ## Implementation and qualification boundary
 

@@ -211,7 +211,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 23 0 R >>
 endobj
 23 0 obj
-<< /Length 1728 >>
+<< /Length 2165 >>
 stream
 0.06 0.15 0.23 rg 0 768 595 74 re f
 1 1 1 rg BT /F2 10 Tf 43 811 Td (INFILTRATOR / FILESYSTEM ENGINEERING) Tj ET
@@ -228,6 +228,10 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (Preserve dot/dot-dot and link counts. A fast symlink can store up to 60 target) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (bytes in i_block; determine eligibility from native allocation/type rules, not) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 566 Td (length alone.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (Historical EXT directory hash families include legacy, half-MD4 and TEA, with) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (signed and unsigned byte variants. The recorded hash version selects the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (algorithm; using a host-language default signedness can route a lookup to the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 500 Td (wrong leaf.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 9) Tj ET
 endstream
 endobj
@@ -258,7 +262,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 27 0 R >>
 endobj
 27 0 obj
-<< /Length 1631 >>
+<< /Length 2077 >>
 stream
 0.06 0.15 0.23 rg 0 768 595 74 re f
 1 1 1 rg BT /F2 10 Tf 43 811 Td (INFILTRATOR / FILESYSTEM ENGINEERING) Tj ET
@@ -274,6 +278,10 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 608 Td (production fallback. Test block sizes 1,2,4 KiB, different inode sizes,) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (sparse-super groups, partial final groups, direct/indirect transitions, sparse) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (subtrees, large file sizes, invalid record lengths and metadata overlap.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 556 Td (Online growth can extend the final group or add groups. Validate the new) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (descriptor and bitmap reservations and their addressability before publishing) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (changed superblock geometry; reconcile local and global free counts with the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (newly admitted space.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 11) Tj ET
 endstream
 endobj
@@ -373,7 +381,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 37 0 R >>
 endobj
 37 0 obj
-<< /Length 1631 >>
+<< /Length 2226 >>
 stream
 0.06 0.15 0.23 rg 0 768 595 74 re f
 1 1 1 rg BT /F2 10 Tf 43 811 Td (INFILTRATOR / FILESYSTEM ENGINEERING) Tj ET
@@ -389,6 +397,11 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 608 Td (ownership checks after journal recovery. An independent defragmenter must update) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (mappings, allocation and affected journal metadata coherently; an application log) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (alone does not establish native JBD compatibility.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 556 Td (The superblock's last-orphan field names the first inode of the historical) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (chain. During recovery, each inode's deletion-time field carries the next inode) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (number. Validate range, ownership, termination and absence of cycles before) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (following it. Cleanup must finish interrupted unlink or truncation without) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 500 Td (leaking or freeing still-referenced blocks.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 16) Tj ET
 endstream
 endobj
@@ -469,26 +482,26 @@ xref
 0000013693 00000 n 
 0000015375 00000 n 
 0000015523 00000 n 
-0000017303 00000 n 
-0000017451 00000 n 
-0000019157 00000 n 
-0000019305 00000 n 
-0000020988 00000 n 
-0000021136 00000 n 
-0000022792 00000 n 
-0000022940 00000 n 
-0000024587 00000 n 
-0000024735 00000 n 
-0000026396 00000 n 
-0000026544 00000 n 
-0000028224 00000 n 
-0000028372 00000 n 
-0000030055 00000 n 
-0000030203 00000 n 
-0000032376 00000 n 
-0000032524 00000 n 
+0000017740 00000 n 
+0000017888 00000 n 
+0000019594 00000 n 
+0000019742 00000 n 
+0000021871 00000 n 
+0000022019 00000 n 
+0000023675 00000 n 
+0000023823 00000 n 
+0000025470 00000 n 
+0000025618 00000 n 
+0000027279 00000 n 
+0000027427 00000 n 
+0000029107 00000 n 
+0000029255 00000 n 
+0000031533 00000 n 
+0000031681 00000 n 
+0000033854 00000 n 
+0000034002 00000 n 
 trailer
 << /Size 42 /Root 1 0 R >>
 startxref
-34077
+35555
 %%EOF

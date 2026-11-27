@@ -158,6 +158,10 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (Preserve dot/dot-dot and link counts. A fast symlink can store up to 60 target) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (bytes in i_block; determine eligibility from native allocation/type rules, not) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 566 Td (length alone.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (Historical EXT directory hash families include legacy, half-MD4 and TEA, with) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (signed and unsigned byte variants. The recorded hash version selects the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (algorithm; using a host-language default signedness can route a lookup to the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 500 Td (wrong leaf.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 9) Tj ET
 
 %%Page
@@ -192,6 +196,10 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 608 Td (production fallback. Test block sizes 1,2,4 KiB, different inode sizes,) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (sparse-super groups, partial final groups, direct/indirect transitions, sparse) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (subtrees, large file sizes, invalid record lengths and metadata overlap.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 556 Td (Online growth can extend the final group or add groups. Validate the new) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (descriptor and bitmap reservations and their addressability before publishing) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (changed superblock geometry; reconcile local and global free counts with the) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (newly admitted space.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 11) Tj ET
 
 %%Page
@@ -277,6 +285,11 @@ BT /F2 22 Tf 43 784 Td (EXT3 - technical reference) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 608 Td (ownership checks after journal recovery. An independent defragmenter must update) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 594 Td (mappings, allocation and affected journal metadata coherently; an application log) Tj ET
 0.08 0.14 0.20 rg BT /F3 10 Tf 43 580 Td (alone does not establish native JBD compatibility.) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 556 Td (The superblock's last-orphan field names the first inode of the historical) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 542 Td (chain. During recovery, each inode's deletion-time field carries the next inode) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 528 Td (number. Validate range, ownership, termination and absence of cycles before) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 514 Td (following it. Cleanup must finish interrupted unlink or truncation without) Tj ET
+0.08 0.14 0.20 rg BT /F3 10 Tf 43 500 Td (leaking or freeing still-referenced blocks.) Tj ET
 0.2 0.3 0.4 rg BT /F1 9 Tf 43 32 Td (Historical development and engineering reference | 16) Tj ET
 
 %%Page
